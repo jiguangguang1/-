@@ -38,6 +38,8 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'is_admin': self.is_admin,
+            'interpark_id': self.interpark_id or '',
+            'weverse_id': self.weverse_id or '',
             'has_presale': self.has_presale,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
