@@ -80,7 +80,7 @@ def list_all_orders():
 @admin_required
 def update_order_status(order_id):
     """手动更新订单状态"""
-    order = db.get(Order, order_id)
+    order = Order.query.get(order_id)
     if not order:
         return jsonify({'error': '订单不存在'}), 404
 

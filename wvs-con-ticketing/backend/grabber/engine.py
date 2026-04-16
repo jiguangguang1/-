@@ -90,7 +90,7 @@ class GrabberEngine:
             return
         try:
             from models import Order
-            order = self.db.get(Order, self.order_id)
+            order = self.db.query(Order).get(self.order_id) if hasattr(self.db, 'query') else Order.query.get(self.order_id)
             if order:
                 for k, v in kwargs.items():
                     setattr(order, k, v)

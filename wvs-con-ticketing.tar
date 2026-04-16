@@ -1,0 +1,5014 @@
+wvs-con-ticketing/                                                                                  0000755 0000000 0000000 00000000000 15170145521 013130  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/README.md                                                                         0000600 0000000 0000000 00000006214 15170142324 014400  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   # 🎫 Weverse Con 2026 抢票系统
+
+基于 YAOLO 设计的完整 Weverse Con 2026 抢票平台，包含 Web 前端 + Flask 后端 + Playwright 自动化抢票引擎。
+
+## 功能特性
+
+- 🎯 **会员预售代拍** — 支持 Weverse 会员优先购票
+- 🎫 **一般开售代拍** — 公开售票自动抢票
+- ⬆️ **升舱服务** — 已有票升级座位等级
+- 🔄 **多窗口并发** — Playwright 多标签页真并发
+- 🔊 **声音提醒** — 抢票成功即时通知
+- 📱 **响应式 Web 界面** — 手机 / 电脑均可操作
+- 👤 **用户系统** — 注册登录、订单管理
+- 🔐 **管理员后台** — 系统监控、订单管理
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 前端 | HTML5 + CSS3 + Vanilla JS |
+| 后端 | Flask + SQLAlchemy + Flask-JWT |
+| 数据库 | SQLite (开发) / PostgreSQL (生产) |
+| 抢票引擎 | Playwright (Chromium) |
+| 实时通信 | WebSocket (flask-sock) |
+| 任务队列 | APScheduler |
+
+## 快速开始
+
+### 1. 安装依赖
+
+```bash
+cd backend
+pip install -r requirements.txt
+playwright install chromium
+```
+
+### 2. 初始化数据库
+
+```bash
+python init_db.py
+```
+
+### 3. 启动后端
+
+```bash
+python app.py
+# 后端运行在 http://localhost:5000
+```
+
+### 4. 打开前端
+
+```bash
+# 直接用浏览器打开
+open frontend/index.html
+# 或者用 Python 起个静态服务
+cd frontend && python -m http.server 8080
+```
+
+### 5. 使用流程
+
+1. 注册账号 / 登录
+2. 填写 Interpark 账号信息
+3. 选择场次和座位偏好
+4. 设置开售时间
+5. 提交订单，系统自动抢票
+6. 实时查看状态，抢票成功即时通知
+
+## 配置
+
+编辑 `backend/config.py` 或通过 Web 界面配置：
+
+- Interpark 账号密码
+- 演出 URL
+- 场次 / 座位偏好
+- 并发标签页数
+- 代理设置
+
+## 目录结构
+
+```
+wvs-con-ticketing/
+├── backend/
+│   ├── app.py              # Flask 主应用
+│   ├── config.py           # 配置管理
+│   ├── models.py           # 数据库模型
+│   ├── auth.py             # 认证模块
+│   ├── routes/
+│   │   ├── orders.py       # 订单 API
+│   │   └── admin.py        # 管理 API
+│   ├── grabber/
+│   │   ├── engine.py       # 抢票引擎（Playwright）
+│   │   ├── scheduler.py    # 定时调度
+│   │   └── monitor.py      # 状态监控
+│   ├── init_db.py          # 数据库初始化
+│   └── requirements.txt
+├── frontend/
+│   ├── index.html          # 首页
+│   ├── dashboard.html      # 用户面板
+│   ├── admin.html          # 管理后台
+│   ├── css/
+│   │   └── style.css       # 全局样式
+│   └── js/
+│       ├── api.js          # API 客户端
+│       ├── auth.js         # 认证逻辑
+│       ├── dashboard.js    # 面板逻辑
+│       └── app.js          # 首页逻辑
+├── logs/                   # 运行日志
+├── screenshots/            # 抢票截图
+└── README.md
+```
+
+## ⚠️ 免责声明
+
+本系统仅供学习研究使用。使用自动化工具抢票可能违反平台服务条款，请自行承担风险。
+                                                                                                                                                                                                                                                                                                                                                                                    wvs-con-ticketing/frontend/                                                                         0000755 0000000 0000000 00000000000 15170143304 014744  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/frontend/dashboard.html                                                           0000600 0000000 0000000 00000020304 15170143167 017557  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎫 控制台 · YAOLO</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎫</text></svg>">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-brand">
+        <span class="emoji">🎫</span>
+        <span>YAOLO</span>
+      </a>
+      <div class="navbar-links">
+        <a href="/" class="navbar-link">首页</a>
+        <a href="/dashboard" class="navbar-link active">控制台</a>
+        <a href="/admin" class="navbar-link" id="adminLink" style="display:none">管理</a>
+      </div>
+      <div id="navAuth"></div>
+    </div>
+  </nav>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <main class="container dashboard">
+    <!-- 用户设置卡片 -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-header">
+        <h2 class="card-title">👤 账号设置</h2>
+        <button class="btn btn-sm btn-secondary" onclick="toggleSettings()" id="toggleSettingsBtn">展开</button>
+      </div>
+      <div id="settingsPanel" class="hidden">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Interpark 账号</label>
+            <input type="text" class="form-input" id="settingInterparkId" placeholder="Interpark 用户名">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Interpark 密码</label>
+            <input type="password" class="form-input" id="settingInterparkPw" placeholder="Interpark 密码">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Weverse ID</label>
+            <input type="text" class="form-input" id="settingWeverseId" placeholder="Weverse 用户名">
+          </div>
+          <div class="form-group">
+            <label class="form-label">是否有会员预售资格</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+              <input type="checkbox" id="settingHasPresale" style="accent-color:var(--primary); width:18px; height:18px;">
+              <span style="font-size:0.9rem; color:var(--text-dim);">是，我有 Weverse 会员预售资格</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+      </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">总订单</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statPending" style="background:linear-gradient(135deg,var(--warning),#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">0</div>
+        <div class="stat-label">待处理</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statGrabbing" style="background:linear-gradient(135deg,var(--info),#2563eb);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">0</div>
+        <div class="stat-label">抢票中</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statSuccess" style="background:linear-gradient(135deg,var(--success),#059669);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">0</div>
+        <div class="stat-label">成功</div>
+      </div>
+    </div>
+
+    <!-- 新建订单 -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-header">
+        <h2 class="card-title">➕ 新建抢票订单</h2>
+      </div>
+
+      <!-- Tab 切换 -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchOrderTab('presale')">🔥 会员预售</button>
+        <button class="tab" onclick="switchOrderTab('general')">🎫 一般开售</button>
+        <button class="tab" onclick="switchOrderTab('upgrade')">⬆️ 升舱</button>
+      </div>
+
+      <form id="orderForm" onsubmit="createOrder(event)">
+        <div class="form-group">
+          <label class="form-label">演出 URL</label>
+          <input type="url" class="form-input" id="orderPerfUrl"
+                 placeholder="https://tickets.interpark.com/goods/..."
+                 required>
+          <span class="form-hint">在 Interpark 上找到 Weverse Con 2026 演出页面，复制完整 URL</span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">场次</label>
+            <select class="form-select" id="orderSchedule">
+              <option value="0">Day 1 (第一天)</option>
+              <option value="1">Day 2 (第二天)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">并发标签页数</label>
+            <select class="form-select" id="orderTabs">
+              <option value="1">1 个（稳定）</option>
+              <option value="2">2 个</option>
+              <option value="3">3 个</option>
+              <option value="4" selected>4 个（推荐）</option>
+              <option value="5">5 个</option>
+              <option value="6">6 个（极限）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" id="presaleTimeGroup">
+          <label class="form-label">会员预售时间 (韩国时间 KST)</label>
+          <input type="datetime-local" class="form-input" id="orderPresaleTime">
+          <span class="form-hint">格式: YYYY-MM-DDTHH:mm (韩国时间 = UTC+9)</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">一般开售时间 (韩国时间 KST)</label>
+          <input type="datetime-local" class="form-input" id="orderOpenTime">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">座位偏好 (按优先级选择)</label>
+          <div class="seat-selector" id="seatSelector">
+            <label class="seat-option selected"><input type="checkbox" value="0" checked> VIP 站席</label>
+            <label class="seat-option selected"><input type="checkbox" value="1" checked> VIP 坐席</label>
+            <label class="seat-option selected"><input type="checkbox" value="2" checked> SR</label>
+            <label class="seat-option selected"><input type="checkbox" value="3" checked> R</label>
+            <label class="seat-option selected"><input type="checkbox" value="4" checked> S</label>
+            <label class="seat-option"><input type="checkbox" value="5"> A</label>
+          </div>
+          <span class="form-hint">系统将按勾选顺序尝试座位等级</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">代理 (可选)</label>
+          <input type="text" class="form-input" id="orderProxy"
+                 placeholder="socks5://host:port 或 http://host:port">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block">
+          🚀 创建抢票订单
+        </button>
+      </form>
+    </div>
+
+    <!-- 订单列表 -->
+    <div class="orders-section">
+      <div class="orders-header">
+        <h2 class="orders-title">📋 我的订单</h2>
+        <button class="btn btn-sm btn-secondary" onclick="loadOrders()">🔄 刷新</button>
+      </div>
+      <div id="ordersList">
+        <p style="text-align:center; color:var(--text-dim); padding:40px;">加载中...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- 订单详情模态框 -->
+  <div class="modal-overlay" id="orderDetailModal">
+    <div class="modal" style="max-width:700px;">
+      <div class="modal-header">
+        <h2 class="modal-title">订单详情</h2>
+        <button class="modal-close" onclick="closeModal('orderDetailModal')">&times;</button>
+      </div>
+      <div id="orderDetailContent"></div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                            wvs-con-ticketing/frontend/css/                                                                     0000755 0000000 0000000 00000000000 15170143020 015527  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/frontend/css/style.css                                                            0000600 0000000 0000000 00000047767 15170143020 017416  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   /* ============================================================
+   YAOLO Weverse Con 2026 — 全局样式
+   ============================================================ */
+
+/* ---- 基础重置 ---- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary: #7c5cfc;
+  --primary-dark: #5b3fd9;
+  --primary-light: #a78bfa;
+  --accent: #00d4ff;
+  --accent-dark: #00a8cc;
+  --bg-dark: #0f0e17;
+  --bg-card: #1a1a2e;
+  --bg-card-hover: #232342;
+  --surface: #16213e;
+  --text: #fffffe;
+  --text-dim: #a7a9be;
+  --text-muted: #6b6d80;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.4);
+  --transition: 0.2s ease;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  background: var(--bg-dark);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+a:hover {
+  color: var(--primary-light);
+}
+
+/* ---- 工具类 ---- */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-1 { gap: 8px; }
+.gap-2 { gap: 16px; }
+.gap-3 { gap: 24px; }
+.text-center { text-align: center; }
+.w-full { width: 100%; }
+.hidden { display: none !important; }
+
+/* ---- 按钮 ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(124, 92, 252, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(124, 92, 252, 0.4);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+}
+
+.btn-lg {
+  padding: 16px 32px;
+  font-size: 1.1rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* ---- 表单 ---- */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.95rem;
+  transition: all var(--transition);
+  outline: none;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--primary);
+  background: rgba(124, 92, 252, 0.05);
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.15);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10L6 8z' fill='%23a7a9be'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.form-select option {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+.form-hint {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 卡片 ---- */
+.card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: all var(--transition);
+}
+
+.card:hover {
+  border-color: rgba(124, 92, 252, 0.2);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+/* ---- 标签 / 徽章 ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-pending { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+.badge-grabbing { background: rgba(59, 130, 246, 0.15); color: var(--info); }
+.badge-waiting { background: rgba(167, 139, 250, 0.15); color: var(--primary-light); }
+.badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+.badge-failed { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+.badge-sold_out { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+.badge-error { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+
+/* ---- 导航栏 ---- */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15, 14, 23, 0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 20px;
+}
+
+.navbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.navbar-brand .emoji {
+  font-size: 1.5rem;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navbar-link {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: all var(--transition);
+}
+
+.navbar-link:hover, .navbar-link.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.navbar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.navbar-user:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.navbar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ---- Hero / 首屏 ---- */
+.hero {
+  position: relative;
+  padding: 80px 0 60px;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(124, 92, 252, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.hero-title .highlight {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  text-align: center;
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  max-width: 600px;
+  margin: 0 auto 40px;
+}
+
+/* ---- 特性卡片区 ---- */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 40px 0;
+}
+
+.feature-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(124, 92, 252, 0.3);
+  box-shadow: var(--shadow-lg);
+}
+
+.feature-card:hover::before {
+  transform: scaleX(1);
+}
+
+.feature-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin: 0 auto 16px;
+}
+
+.feature-icon.presale {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.05));
+}
+
+.feature-icon.ticket {
+  background: linear-gradient(135deg, rgba(124, 92, 252, 0.2), rgba(124, 92, 252, 0.05));
+}
+
+.feature-icon.upgrade {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 212, 255, 0.05));
+}
+
+.feature-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.feature-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ---- 流程步骤 ---- */
+.steps {
+  padding: 40px 0;
+}
+
+.steps-title {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 32px;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+.step {
+  text-align: center;
+  position: relative;
+}
+
+.step-number {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0 auto 12px;
+}
+
+.step-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.step-desc {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* ---- 底部信息 ---- */
+.info-section {
+  padding: 40px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.info-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.info-card h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-card p, .info-card li {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.info-card ul {
+  list-style: none;
+  padding: 0;
+}
+
+.info-card li {
+  padding: 4px 0;
+}
+
+.info-card li::before {
+  content: '✓ ';
+  color: var(--success);
+  font-weight: 700;
+}
+
+/* ---- Footer ---- */
+.footer {
+  padding: 32px 0;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.footer p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 12px;
+}
+
+.footer-links a {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* ---- Dashboard ---- */
+.dashboard {
+  padding: 32px 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ---- 订单列表 ---- */
+.orders-section {
+  margin-top: 24px;
+}
+
+.orders-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.orders-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.order-item {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 12px;
+  transition: all var(--transition);
+}
+
+.order-item:hover {
+  border-color: rgba(124, 92, 252, 0.2);
+}
+
+.order-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.order-id {
+  font-weight: 700;
+  color: var(--primary-light);
+}
+
+.order-time {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.order-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.order-detail {
+  font-size: 0.85rem;
+}
+
+.order-detail-label {
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.order-detail-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.order-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---- 日志面板 ---- */
+.log-panel {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+
+.log-entry {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.log-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.log-msg {
+  color: var(--text-dim);
+}
+
+.log-entry.level-info .log-msg { color: var(--text); }
+.log-entry.level-warning .log-msg { color: var(--warning); }
+.log-entry.level-error .log-msg { color: var(--error); }
+
+/* ---- 模态框 ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 32px;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .modal {
+  transform: scale(1);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.modal-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+/* ---- Toast 通知 ---- */
+.toast-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  padding: 14px 20px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+  transform: translateX(120%);
+  transition: transform 0.3s ease;
+  max-width: 360px;
+}
+
+.toast.show {
+  transform: translateX(0);
+}
+
+.toast-success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--success);
+}
+
+.toast-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--error);
+}
+
+.toast-info {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--info);
+}
+
+/* ---- Tab 切换 ---- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+.tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 92, 252, 0.3);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* ---- 服务条款 ---- */
+.terms {
+  padding: 20px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 24px;
+}
+
+.terms-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terms-list {
+  list-style: none;
+  padding: 0;
+}
+
+.terms-list li {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  padding: 4px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.terms-list li::before {
+  content: '•';
+  position: absolute;
+  left: 4px;
+  color: var(--primary-light);
+}
+
+/* ---- 管理后台 ---- */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-stat {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.admin-stat-value {
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.admin-stat-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* ---- 响应式 ---- */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .navbar-links {
+    display: none;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modal {
+    padding: 24px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .order-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 动画 ---- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-in {
+  animation: fadeInUp 0.5s ease forwards;
+}
+
+.animate-delay-1 { animation-delay: 0.1s; }
+.animate-delay-2 { animation-delay: 0.2s; }
+.animate-delay-3 { animation-delay: 0.3s; }
+.animate-delay-4 { animation-delay: 0.4s; }
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ---- 座位偏好选择器 ---- */
+.seat-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.seat-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-size: 0.85rem;
+}
+
+.seat-option:hover {
+  border-color: var(--primary);
+}
+
+.seat-option.selected {
+  background: rgba(124, 92, 252, 0.15);
+  border-color: var(--primary);
+  color: var(--primary-light);
+}
+
+.seat-option input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+
+/* ---- 计时器 ---- */
+.countdown {
+  text-align: center;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(124, 92, 252, 0.1), rgba(0, 212, 255, 0.1));
+  border-radius: var(--radius-lg);
+  margin-bottom: 24px;
+}
+
+.countdown-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.countdown-time {
+  font-size: 2.5rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ---- 下载按钮 ---- */
+.download-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 24px 0;
+}
+
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+
+.download-btn:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.download-btn .icon {
+  font-size: 1.4rem;
+}
+         wvs-con-ticketing/frontend/js/                                                                      0000755 0000000 0000000 00000000000 15170143304 015360  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/frontend/js/api.js                                                                0000600 0000000 0000000 00000011016 15170143122 016454  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   /**
+ * API 客户端
+ */
+const API = {
+  BASE: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? `http://${window.location.hostname}:5000`
+    : '',
+
+  getToken() {
+    return localStorage.getItem('wvs_token');
+  },
+
+  setToken(token) {
+    localStorage.setItem('wvs_token', token);
+  },
+
+  clearToken() {
+    localStorage.removeItem('wvs_token');
+    localStorage.removeItem('wvs_user');
+  },
+
+  getUser() {
+    const u = localStorage.getItem('wvs_user');
+    return u ? JSON.parse(u) : null;
+  },
+
+  setUser(user) {
+    localStorage.setItem('wvs_user', JSON.stringify(user));
+  },
+
+  isLoggedIn() {
+    return !!this.getToken();
+  },
+
+  async request(path, options = {}) {
+    const url = `${this.BASE}${path}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    const token = this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const res = await fetch(url, { ...options, headers });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          this.clearToken();
+          window.location.href = '/';
+        }
+        throw new Error(data.error || `请求失败 (${res.status})`);
+      }
+
+      return data;
+    } catch (err) {
+      if (err.message === 'Failed to fetch') {
+        throw new Error('无法连接到服务器，请确认后端已启动');
+      }
+      throw err;
+    }
+  },
+
+  // Auth
+  login(username, password) {
+    return this.request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  },
+
+  register(username, email, password) {
+    return this.request('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password }),
+    });
+  },
+
+  getMe() {
+    return this.request('/api/auth/me');
+  },
+
+  updateProfile(data) {
+    return this.request('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Orders
+  getOrders(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/api/orders?${qs}`);
+  },
+
+  getOrder(id) {
+    return this.request(`/api/orders/${id}`);
+  },
+
+  createOrder(data) {
+    return this.request('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateOrder(id, data) {
+    return this.request(`/api/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteOrder(id) {
+    return this.request(`/api/orders/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  startGrabber(id) {
+    return this.request(`/api/orders/${id}/start`, {
+      method: 'POST',
+    });
+  },
+
+  getOrderLogs(id, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/api/orders/${id}/logs?${qs}`);
+  },
+
+  // Admin
+  getAdminDashboard() {
+    return this.request('/api/admin/dashboard');
+  },
+
+  getAdminUsers(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/api/admin/users?${qs}`);
+  },
+
+  getAdminOrders(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/api/admin/orders?${qs}`);
+  },
+
+  updateOrderStatus(id, data) {
+    return this.request(`/api/admin/orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// Toast 通知
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add('show'));
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// 模态框
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('active');
+}
+
+// 状态标签
+function statusBadge(status) {
+  const labels = {
+    pending: '待启动',
+    waiting: '等待中',
+    grabbing: '抢票中',
+    success: '✅ 成功',
+    failed: '❌ 失败',
+    sold_out: '😢 售罄',
+    error: '⚠️ 异常',
+  };
+  return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
+}
+
+// 座位标签
+const SEAT_LABELS = {
+  0: 'VIP 站席',
+  1: 'VIP 坐席',
+  2: 'SR',
+  3: 'R',
+  4: 'S',
+  5: 'A',
+};
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  wvs-con-ticketing/frontend/js/app.js                                                                0000600 0000000 0000000 00000000557 15170143122 016473  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   /**
+ * 首页逻辑
+ */
+
+function handleGetStarted() {
+  if (API.isLoggedIn()) {
+    window.location.href = '/dashboard';
+  } else {
+    showLoginModal();
+  }
+}
+
+function handleFeatureClick(type) {
+  if (API.isLoggedIn()) {
+    window.location.href = `/dashboard?action=${type}`;
+  } else {
+    showLoginModal();
+    showToast('请先登录后使用', 'info');
+  }
+}
+                                                                                                                                                 wvs-con-ticketing/frontend/js/dashboard.js                                                          0000600 0000000 0000000 00000030116 15170143240 017635  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   /**
+ * 控制台逻辑
+ */
+
+let currentOrderTab = 'presale';
+let refreshTimer = null;
+
+// ---- 初始化 ----
+document.addEventListener('DOMContentLoaded', () => {
+  if (!API.isLoggedIn()) {
+    window.location.href = '/';
+    return;
+  }
+
+  const user = API.getUser();
+  if (user?.is_admin) {
+    const adminLink = document.getElementById('adminLink');
+    if (adminLink) adminLink.style.display = '';
+  }
+
+  loadSettings();
+  loadOrders();
+  loadStats();
+
+  // 自动刷新
+  refreshTimer = setInterval(() => {
+    loadOrders();
+    loadStats();
+  }, 10000);
+});
+
+// ---- 设置 ----
+function toggleSettings() {
+  const panel = document.getElementById('settingsPanel');
+  const btn = document.getElementById('toggleSettingsBtn');
+  panel.classList.toggle('hidden');
+  btn.textContent = panel.classList.contains('hidden') ? '展开' : '收起';
+}
+
+async function loadSettings() {
+  try {
+    const user = await API.getMe();
+    API.setUser(user);
+    document.getElementById('settingInterparkId').value = user.interpark_id || '';
+    document.getElementById('settingWeverseId').value = user.weverse_id || '';
+    document.getElementById('settingHasPresale').checked = !!user.has_presale;
+  } catch (err) {
+    console.error('加载设置失败:', err);
+  }
+}
+
+async function saveSettings() {
+  try {
+    const data = {
+      interpark_id: document.getElementById('settingInterparkId').value.trim(),
+      weverse_id: document.getElementById('settingWeverseId').value.trim(),
+      has_presale: document.getElementById('settingHasPresale').checked,
+    };
+
+    const pw = document.getElementById('settingInterparkPw').value;
+    if (pw) data.interpark_pw = pw;
+
+    await API.updateProfile(data);
+    showToast('设置已保存', 'success');
+    document.getElementById('settingInterparkPw').value = '';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ---- Tab 切换 ----
+function switchOrderTab(tab) {
+  currentOrderTab = tab;
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const presaleGroup = document.getElementById('presaleTimeGroup');
+  if (tab === 'presale') {
+    presaleGroup.style.display = '';
+  } else {
+    presaleGroup.style.display = 'none';
+  }
+}
+
+// ---- 座位选择器 ----
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.seat-option input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.closest('.seat-option').classList.toggle('selected', cb.checked);
+    });
+  });
+});
+
+function getSelectedSeats() {
+  const checkboxes = document.querySelectorAll('.seat-option input[type="checkbox"]:checked');
+  return Array.from(checkboxes).map(cb => parseInt(cb.value));
+}
+
+// ---- 创建订单 ----
+async function createOrder(event) {
+  event.preventDefault();
+  const btn = event.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.textContent = '创建中...';
+
+  try {
+    const perfUrl = document.getElementById('orderPerfUrl').value.trim();
+    const scheduleIndex = parseInt(document.getElementById('orderSchedule').value);
+    const tabCount = parseInt(document.getElementById('orderTabs').value);
+    const openTimeRaw = document.getElementById('orderOpenTime').value;
+    const presaleTimeRaw = document.getElementById('orderPresaleTime').value;
+    const proxy = document.getElementById('orderProxy').value.trim();
+    const seatPrefs = getSelectedSeats();
+
+    // 转换时间格式: datetime-local -> "YYYY-MM-DD HH:MM:SS"
+    let openTime = '';
+    let presaleTime = '';
+    if (openTimeRaw) {
+      openTime = openTimeRaw.replace('T', ':00 ').length === 19
+        ? openTimeRaw.replace('T', ' ') + ':00'
+        : openTimeRaw.replace('T', ' ');
+      // 格式: 2026-06-14T20:00 -> 2026-06-14 20:00:00
+      openTime = openTimeRaw.replace('T', ' ') + ':00';
+    }
+    if (presaleTimeRaw) {
+      presaleTime = presaleTimeRaw.replace('T', ' ') + ':00';
+    }
+
+    if (!perfUrl) throw new Error('请填写演出 URL');
+    if (!openTime && !presaleTime) throw new Error('请设置开售时间');
+
+    const data = await API.createOrder({
+      perf_url: perfUrl,
+      schedule_index: scheduleIndex,
+      schedule_label: scheduleIndex === 0 ? 'Day 1' : 'Day 2',
+      seat_prefs: seatPrefs,
+      tab_count: tabCount,
+      open_time: openTime,
+      presale_time: presaleTime,
+      proxy: proxy,
+    });
+
+    showToast('✅ 订单创建成功！', 'success');
+    document.getElementById('orderForm').reset();
+    // 重置座位选择
+    document.querySelectorAll('.seat-option').forEach(opt => {
+      const cb = opt.querySelector('input');
+      const idx = parseInt(cb.value);
+      cb.checked = idx <= 4;
+      opt.classList.toggle('selected', cb.checked);
+    });
+
+    loadOrders();
+    loadStats();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 创建抢票订单';
+  }
+}
+
+// ---- 订单列表 ----
+async function loadOrders() {
+  try {
+    const data = await API.getOrders({ per_page: 20 });
+    renderOrders(data.orders);
+  } catch (err) {
+    document.getElementById('ordersList').innerHTML =
+      `<p style="text-align:center; color:var(--error); padding:40px;">加载失败: ${err.message}</p>`;
+  }
+}
+
+function renderOrders(orders) {
+  const container = document.getElementById('ordersList');
+
+  if (!orders || orders.length === 0) {
+    container.innerHTML = `<p style="text-align:center; color:var(--text-dim); padding:40px;">暂无订单，创建你的第一个抢票订单吧 🎫</p>`;
+    return;
+  }
+
+  container.innerHTML = orders.map(o => `
+    <div class="order-item">
+      <div class="order-top">
+        <span class="order-id">#${o.id} ${o.is_presale ? '💎 预售' : '🎫 公售'}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          ${statusBadge(o.status)}
+          <span class="order-time">${formatTime(o.created_at)}</span>
+        </div>
+      </div>
+      <div class="order-details">
+        <div class="order-detail">
+          <span class="order-detail-label">场次</span>
+          <span class="order-detail-value">${o.schedule_label}</span>
+        </div>
+        <div class="order-detail">
+          <span class="order-detail-label">开售时间</span>
+          <span class="order-detail-value">${o.presale_time || o.open_time || '未设置'}</span>
+        </div>
+        <div class="order-detail">
+          <span class="order-detail-label">标签页</span>
+          <span class="order-detail-value">${o.tab_count} 个</span>
+        </div>
+        <div class="order-detail">
+          <span class="order-detail-label">座位偏好</span>
+          <span class="order-detail-value">${(o.seat_prefs || []).map(s => SEAT_LABELS[s] || s).join(' > ')}</span>
+        </div>
+        ${o.order_no ? `
+        <div class="order-detail">
+          <span class="order-detail-label">订单号</span>
+          <span class="order-detail-value" style="color:var(--success);">${o.order_no}</span>
+        </div>` : ''}
+      </div>
+      <div class="order-actions">
+        <button class="btn btn-sm btn-secondary" onclick="viewOrderDetail(${o.id})">📋 详情</button>
+        ${o.status === 'pending' || o.status === 'failed' || o.status === 'error' ?
+          `<button class="btn btn-sm btn-success" onclick="startOrder(${o.id})">🚀 启动</button>` : ''}
+        ${o.status === 'pending' ?
+          `<button class="btn btn-sm btn-secondary" onclick="editOrder(${o.id})">✏️ 编辑</button>` : ''}
+        ${o.status !== 'grabbing' ?
+          `<button class="btn btn-sm btn-danger" onclick="deleteOrder(${o.id})">🗑️ 删除</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---- 统计 ----
+async function loadStats() {
+  try {
+    const data = await API.getOrders({ per_page: 100 });
+    const orders = data.orders || [];
+
+    document.getElementById('statTotal').textContent = orders.length;
+    document.getElementById('statPending').textContent = orders.filter(o => ['pending', 'waiting'].includes(o.status)).length;
+    document.getElementById('statGrabbing').textContent = orders.filter(o => o.status === 'grabbing').length;
+    document.getElementById('statSuccess').textContent = orders.filter(o => o.status === 'success').length;
+  } catch (err) {
+    console.error('加载统计失败:', err);
+  }
+}
+
+// ---- 操作 ----
+async function startOrder(id) {
+  if (!confirm('确定启动抢票？')) return;
+  try {
+    const data = await API.startGrabber(id);
+    showToast(data.message || '已启动', 'success');
+    loadOrders();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function deleteOrder(id) {
+  if (!confirm('确定删除此订单？')) return;
+  try {
+    await API.deleteOrder(id);
+    showToast('已删除', 'success');
+    loadOrders();
+    loadStats();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function viewOrderDetail(id) {
+  try {
+    const order = await API.getOrder(id);
+    const content = document.getElementById('orderDetailContent');
+
+    content.innerHTML = `
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3>订单 #${order.id}</h3>
+          ${statusBadge(order.status)}
+        </div>
+        <div class="order-details">
+          <div class="order-detail"><span class="order-detail-label">演出 URL</span><span class="order-detail-value" style="word-break:break-all;font-size:0.8rem;">${order.perf_url}</span></div>
+          <div class="order-detail"><span class="order-detail-label">场次</span><span class="order-detail-value">${order.schedule_label}</span></div>
+          <div class="order-detail"><span class="order-detail-label">预售时间</span><span class="order-detail-value">${order.presale_time || '无'}</span></div>
+          <div class="order-detail"><span class="order-detail-label">开售时间</span><span class="order-detail-value">${order.open_time || '无'}</span></div>
+          <div class="order-detail"><span class="order-detail-label">标签页</span><span class="order-detail-value">${order.tab_count}</span></div>
+          <div class="order-detail"><span class="order-detail-label">创建时间</span><span class="order-detail-value">${formatTime(order.created_at)}</span></div>
+          ${order.order_no ? `<div class="order-detail"><span class="order-detail-label">订单号</span><span class="order-detail-value" style="color:var(--success);">${order.order_no}</span></div>` : ''}
+        </div>
+      </div>
+
+      <div>
+        <h4 style="margin-bottom:12px;">📜 运行日志</h4>
+        <div class="log-panel" id="logPanel">
+          ${(order.logs || []).map(l => `
+            <div class="log-entry level-${l.level.toLowerCase()}">
+              <span class="log-time">${formatLogTime(l.created_at)}</span>
+              <span class="log-msg">${l.message}</span>
+            </div>
+          `).join('') || '<p style="color:var(--text-dim);">暂无日志</p>'}
+        </div>
+      </div>
+    `;
+
+    openModal('orderDetailModal');
+
+    // 滚动到底部
+    const logPanel = document.getElementById('logPanel');
+    if (logPanel) logPanel.scrollTop = logPanel.scrollHeight;
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function editOrder(id) {
+  // 简化编辑：直接用 prompt
+  try {
+    const order = await API.getOrder(id);
+    const newUrl = prompt('演出 URL:', order.perf_url);
+    if (newUrl === null) return;
+
+    await API.updateOrder(id, { perf_url: newUrl });
+    showToast('更新成功', 'success');
+    loadOrders();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ---- 工具函数 ----
+function formatTime(isoStr) {
+  if (!isoStr) return '-';
+  const d = new Date(isoStr);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatLogTime(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+}
+
+// 页面离开时清理定时器
+window.addEventListener('beforeunload', () => {
+  if (refreshTimer) clearInterval(refreshTimer);
+});
+                                                                                                                                                                                                                                                                                                                                                                                                                                                  wvs-con-ticketing/frontend/js/admin.js                                                              0000600 0000000 0000000 00000015720 15170143304 017003  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   /**
+ * 管理后台逻辑
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!API.isLoggedIn()) {
+    window.location.href = '/';
+    return;
+  }
+
+  const user = API.getUser();
+  if (!user?.is_admin) {
+    showToast('需要管理员权限', 'error');
+    window.location.href = '/dashboard';
+    return;
+  }
+
+  loadAdminDashboard();
+  loadAdminOrders();
+});
+
+// ---- Tab ----
+function switchAdminTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+
+  document.getElementById('adminOrdersTab').classList.remove('active');
+  document.getElementById('adminUsersTab').classList.remove('active');
+
+  if (tab === 'orders') {
+    document.getElementById('adminOrdersTab').classList.add('active');
+    loadAdminOrders();
+  } else {
+    document.getElementById('adminUsersTab').classList.add('active');
+    loadAdminUsers();
+  }
+}
+
+// ---- Dashboard ----
+async function loadAdminDashboard() {
+  try {
+    const data = await API.getAdminDashboard();
+    const s = data.stats;
+    document.getElementById('adminTotalUsers').textContent = s.total_users;
+    document.getElementById('adminTotalOrders').textContent = s.total_orders;
+    document.getElementById('adminGrabbing').textContent = s.grabbing;
+    document.getElementById('adminSuccess').textContent = s.success;
+    document.getElementById('adminFailed').textContent = s.failed;
+    document.getElementById('adminSoldOut').textContent = s.sold_out;
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ---- 订单列表 ----
+async function loadAdminOrders() {
+  const container = document.getElementById('adminOrdersList');
+  const status = document.getElementById('orderStatusFilter').value;
+
+  try {
+    const data = await API.getAdminOrders({ status: status || undefined, per_page: 50 });
+    const orders = data.orders || [];
+
+    if (orders.length === 0) {
+      container.innerHTML = '<p style="text-align:center; color:var(--text-dim); padding:40px;">暂无订单</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+          <thead>
+            <tr style="text-align:left; border-bottom:1px solid rgba(255,255,255,0.1);">
+              <th style="padding:8px;">ID</th>
+              <th style="padding:8px;">用户</th>
+              <th style="padding:8px;">类型</th>
+              <th style="padding:8px;">场次</th>
+              <th style="padding:8px;">时间</th>
+              <th style="padding:8px;">状态</th>
+              <th style="padding:8px;">订单号</th>
+              <th style="padding:8px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orders.map(o => `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px; font-weight:600;">#${o.id}</td>
+                <td style="padding:8px;">用户${o.user_id}</td>
+                <td style="padding:8px;">${o.is_presale ? '💎 预售' : '🎫 公售'}</td>
+                <td style="padding:8px;">${o.schedule_label}</td>
+                <td style="padding:8px; font-size:0.8rem; color:var(--text-dim);">${o.presale_time || o.open_time || '-'}</td>
+                <td style="padding:8px;">${statusBadge(o.status)}</td>
+                <td style="padding:8px; font-size:0.8rem; color:var(--success);">${o.order_no || '-'}</td>
+                <td style="padding:8px;">
+                  <select style="padding:4px 8px; border-radius:6px; background:var(--bg-card); border:1px solid rgba(255,255,255,0.1); color:var(--text); font-size:0.8rem;"
+                          onchange="changeOrderStatus(${o.id}, this.value)">
+                    <option value="">修改状态</option>
+                    <option value="pending">待启动</option>
+                    <option value="grabbing">抢票中</option>
+                    <option value="success">成功</option>
+                    <option value="failed">失败</option>
+                    <option value="sold_out">售罄</option>
+                    <option value="error">异常</option>
+                  </select>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:12px;">
+        共 ${data.total} 条 | 第 ${data.page}/${data.pages} 页
+      </p>
+    `;
+  } catch (err) {
+    container.innerHTML = `<p style="color:var(--error); padding:20px;">加载失败: ${err.message}</p>`;
+  }
+}
+
+async function changeOrderStatus(id, newStatus) {
+  if (!newStatus) return;
+  if (!confirm(`将订单 #${id} 状态改为「${newStatus}」？`)) {
+    loadAdminOrders();
+    return;
+  }
+
+  try {
+    await API.updateOrderStatus(id, { status: newStatus });
+    showToast('状态已更新', 'success');
+    loadAdminOrders();
+    loadAdminDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ---- 用户列表 ----
+async function loadAdminUsers() {
+  const container = document.getElementById('adminUsersList');
+
+  try {
+    const data = await API.getAdminUsers({ per_page: 50 });
+    const users = data.users || [];
+
+    if (users.length === 0) {
+      container.innerHTML = '<p style="text-align:center; color:var(--text-dim); padding:40px;">暂无用户</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+          <thead>
+            <tr style="text-align:left; border-bottom:1px solid rgba(255,255,255,0.1);">
+              <th style="padding:8px;">ID</th>
+              <th style="padding:8px;">用户名</th>
+              <th style="padding:8px;">邮箱</th>
+              <th style="padding:8px;">管理员</th>
+              <th style="padding:8px;">预售</th>
+              <th style="padding:8px;">注册时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px; font-weight:600;">#${u.id}</td>
+                <td style="padding:8px;">${u.username}</td>
+                <td style="padding:8px; color:var(--text-dim);">${u.email}</td>
+                <td style="padding:8px;">${u.is_admin ? '👑' : '-'}</td>
+                <td style="padding:8px;">${u.has_presale ? '💎' : '-'}</td>
+                <td style="padding:8px; color:var(--text-dim); font-size:0.8rem;">${formatTime(u.created_at)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<p style="color:var(--error); padding:20px;">加载失败: ${err.message}</p>`;
+  }
+}
+
+function formatTime(isoStr) {
+  if (!isoStr) return '-';
+  const d = new Date(isoStr);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+                                                wvs-con-ticketing/frontend/js/auth.js                                                               0000600 0000000 0000000 00000006117 15170143122 016652  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   /**
+ * 认证逻辑
+ */
+
+let isRegisterMode = false;
+
+function updateNavbarAuth() {
+  const navAuth = document.getElementById('navAuth');
+  const adminLink = document.getElementById('adminLink');
+  if (!navAuth) return;
+
+  if (API.isLoggedIn()) {
+    const user = API.getUser();
+    const initial = (user?.username || 'U')[0].toUpperCase();
+    navAuth.innerHTML = `
+      <div class="navbar-user" onclick="window.location.href='/dashboard'">
+        <div class="navbar-avatar">${initial}</div>
+        <span style="font-size:0.9rem; font-weight:500;">${user?.username || '用户'}</span>
+      </div>
+    `;
+    if (adminLink && user?.is_admin) {
+      adminLink.style.display = '';
+    }
+  } else {
+    navAuth.innerHTML = `<a href="#" class="btn btn-primary btn-sm" onclick="showLoginModal()">登录</a>`;
+    if (adminLink) adminLink.style.display = 'none';
+  }
+}
+
+function showLoginModal() {
+  isRegisterMode = false;
+  document.getElementById('authModalTitle').textContent = '登录';
+  document.getElementById('emailGroup').style.display = 'none';
+  document.getElementById('authSubmitBtn').textContent = '登录';
+  document.getElementById('toggleAuthMode').textContent = '没有账号？注册';
+  openModal('loginModal');
+}
+
+function toggleAuthMode() {
+  isRegisterMode = !isRegisterMode;
+  if (isRegisterMode) {
+    document.getElementById('authModalTitle').textContent = '注册';
+    document.getElementById('emailGroup').style.display = '';
+    document.getElementById('authSubmitBtn').textContent = '注册';
+    document.getElementById('toggleAuthMode').textContent = '已有账号？登录';
+  } else {
+    document.getElementById('authModalTitle').textContent = '登录';
+    document.getElementById('emailGroup').style.display = 'none';
+    document.getElementById('authSubmitBtn').textContent = '登录';
+    document.getElementById('toggleAuthMode').textContent = '没有账号？注册';
+  }
+}
+
+async function handleAuth(event) {
+  event.preventDefault();
+  const username = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const btn = document.getElementById('authSubmitBtn');
+
+  btn.disabled = true;
+  btn.textContent = '处理中...';
+
+  try {
+    let data;
+    if (isRegisterMode) {
+      const email = document.getElementById('authEmail').value.trim();
+      if (!email) throw new Error('请填写邮箱');
+      data = await API.register(username, email, password);
+    } else {
+      data = await API.login(username, password);
+    }
+
+    API.setToken(data.token);
+    API.setUser(data.user);
+    updateNavbarAuth();
+    closeModal('loginModal');
+    showToast(data.message || '操作成功', 'success');
+
+    // 清空表单
+    document.getElementById('authForm').reset();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = isRegisterMode ? '注册' : '登录';
+  }
+}
+
+function logout() {
+  API.clearToken();
+  updateNavbarAuth();
+  window.location.href = '/';
+}
+
+// 页面加载时检查登录状态
+document.addEventListener('DOMContentLoaded', () => {
+  updateNavbarAuth();
+});
+                                                                                                                                                                                                                                                                                                                                                                                                                                                 wvs-con-ticketing/frontend/index.html                                                               0000600 0000000 0000000 00000022414 15170143066 016741  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎫 YAOLO · Weverse Con 2026 抢票系统</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎫</text></svg>">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-brand">
+        <span class="emoji">🎫</span>
+        <span>YAOLO</span>
+      </a>
+      <div class="navbar-links" id="navLinks">
+        <a href="/" class="navbar-link active">首页</a>
+        <a href="/dashboard" class="navbar-link">控制台</a>
+        <a href="/admin" class="navbar-link" id="adminLink" style="display:none">管理</a>
+      </div>
+      <div id="navAuth">
+        <a href="#" class="btn btn-primary btn-sm" onclick="showLoginModal()">登录</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Toast 容器 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title animate-in">
+        <span class="highlight">YAOLO</span> Weverse Con 2026<br>
+        <span style="font-size:1.5rem; font-weight:600;">🎫 全球首次开售 · 全平台通用 · 免费体验 🎫</span>
+      </h1>
+      <p class="hero-subtitle animate-in animate-delay-1">
+        由 Kivisense 提供的智能抢票系统，多窗口并发、精确倒计时、声音提醒，助你第一时间锁定心仪的座位。
+      </p>
+
+      <!-- 订阅按钮 -->
+      <div class="text-center animate-in animate-delay-2" style="margin-bottom: 16px;">
+        <a href="#" class="btn btn-secondary" onclick="showLoginModal()" style="min-width: 200px;">
+          ✉️ 开售提醒
+        </a>
+      </div>
+
+      <!-- 平台下载 -->
+      <div class="download-buttons animate-in animate-delay-3">
+        <a href="#" class="download-btn">
+          <span class="icon">🤖</span>
+          <div>
+            <div style="font-size:0.75rem; color:var(--text-dim);">Get it on</div>
+            <div>Android</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 服务说明 -->
+  <section class="container">
+    <div class="info-grid" style="margin-bottom:40px;">
+      <div class="info-card animate-in">
+        <h3>📋 YAOLO 服务介绍</h3>
+        <p>
+          YAOLO 全称为 You Are Our Little One，致力于为全球粉丝提供最可靠的演唱会门票代拍服务。
+          系统基于 Playwright 自动化引擎，支持多窗口真并发抢票。
+        </p>
+      </div>
+      <div class="info-card animate-in animate-delay-1">
+        <h3>🔒 数据安全</h3>
+        <ul>
+          <li>Interpark 登录凭证仅用于抢票，不存储明文密码</li>
+          <li>所有通信加密传输</li>
+          <li>抢票完成后自动清理浏览器状态</li>
+          <li>严格遵循平台服务条款</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 四大服务 -->
+  <section class="container">
+    <h2 style="text-align:center; font-size:1.5rem; font-weight:800; margin-bottom:32px;">🎫 四大核心服务</h2>
+    <div class="features">
+      <div class="feature-card animate-in" onclick="handleFeatureClick('presale')">
+        <div class="feature-icon presale">🔥</div>
+        <h3 class="feature-title">会员预售代拍</h3>
+        <p class="feature-desc">Weverse 会员专享：提前抢票，优先选座，VIP 站席 / SR 级别最优位。</p>
+      </div>
+      <div class="feature-card animate-in animate-delay-1" onclick="handleFeatureClick('general')">
+        <div class="feature-icon ticket">🎫</div>
+        <h3 class="feature-title">演唱会门票代拍</h3>
+        <p class="feature-desc">公开售票首秒并发冲刺，4~6 个标签页同时运作，最大化抢票成功率。</p>
+      </div>
+      <div class="feature-card animate-in animate-delay-2" onclick="handleFeatureClick('upgrade')">
+        <div class="feature-icon upgrade">⬆️</div>
+        <h3 class="feature-title">升舱券</h3>
+        <p class="feature-desc">已持有低等级门票？通过系统自动检测高等级余票，实现座位升级。</p>
+      </div>
+      <div class="feature-card animate-in animate-delay-3" onclick="handleFeatureClick('monitor')">
+        <div class="feature-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.2),rgba(16,185,129,.05))">📊</div>
+        <h3 class="feature-title">实时监控</h3>
+        <p class="feature-desc">Web 界面实时查看抢票进度、日志、截图，随时掌握状态。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 使用流程 -->
+  <section class="container steps">
+    <h2 class="steps-title">📌 使用流程</h2>
+    <div class="steps-grid">
+      <div class="step animate-in">
+        <div class="step-number">1</div>
+        <h4 class="step-title">注册 / 登录</h4>
+        <p class="step-desc">创建账号并填写 Interpark 凭证</p>
+      </div>
+      <div class="step animate-in animate-delay-1">
+        <div class="step-number">2</div>
+        <h4 class="step-title">提交订单</h4>
+        <p class="step-desc">选择场次、座位、开售时间</p>
+      </div>
+      <div class="step animate-in animate-delay-2">
+        <div class="step-number">3</div>
+        <h4 class="step-title">自动抢票</h4>
+        <p class="step-desc">系统在开售瞬间多窗口并发</p>
+      </div>
+      <div class="step animate-in animate-delay-3">
+        <div class="step-number">4</div>
+        <h4 class="step-title">收到结果</h4>
+        <p class="step-desc">成功即时通知，附订单截图</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 特别合作 -->
+  <section class="container" style="padding:40px 0;">
+    <div class="info-grid">
+      <div class="info-card animate-in">
+        <h3>🎵 特别合作</h3>
+        <p><strong>Weverse Con 2026</strong> by HYBE — 全球粉丝盛会，顶级 K-pop 艺人阵容。YAOLO 为 Interpark 购票提供全自动化支持。</p>
+        <p style="margin-top:12px;">⭐ 特别合作 All Access by Weverse Con 2026</p>
+      </div>
+      <div class="info-card animate-in animate-delay-1">
+        <h3>📱 Interpark 抢票指南</h3>
+        <ul>
+          <li>访问 tickets.interpark.com 并登录</li>
+          <li>搜索 "Weverse Con 2026" 演出</li>
+          <li>选择日期和座位等级</li>
+          <li>确保付款方式就绪</li>
+          <li>开售时间准时操作</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 服务条款 -->
+  <section class="container">
+    <div class="terms">
+      <h3 class="terms-title">📋 服务条款摘要</h3>
+      <ul class="terms-list">
+        <li>一旦成功抢票不可取消、不可退款</li>
+        <li>代拍服务费在抢票成功后收取</li>
+        <li>我们保证合法合规的代拍服务</li>
+        <li>100% 真实人手手动抢票</li>
+        <li>禁止使用任何非法外挂程序</li>
+        <li>如未成功抢票，全额退还代拍费用</li>
+        <li>请仔细阅读完整服务条款</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="container text-center" style="padding: 40px 0 60px;">
+    <h2 style="font-size:1.8rem; font-weight:800; margin-bottom:16px;">
+      准备好抢票了吗？🎫
+    </h2>
+    <p style="color:var(--text-dim); margin-bottom:24px;">
+      立即注册，设置你的第一张抢票订单
+    </p>
+    <a href="#" class="btn btn-primary btn-lg" onclick="handleGetStarted()">
+      🚀 立即开始
+    </a>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 YAOLO · Powered by Kivisense</p>
+      <div class="footer-links">
+        <a href="#">隐私政策</a>
+        <a href="#">服务条款</a>
+        <a href="#">联系我们</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 登录模态框 -->
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="authModalTitle">登录</h2>
+        <button class="modal-close" onclick="closeModal('loginModal')">&times;</button>
+      </div>
+      <form id="authForm" onsubmit="handleAuth(event)">
+        <div class="form-group" id="emailGroup" style="display:none">
+          <label class="form-label">邮箱</label>
+          <input type="email" class="form-input" id="authEmail" placeholder="your@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">用户名</label>
+          <input type="text" class="form-input" id="authUsername" placeholder="用户名" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码</label>
+          <input type="password" class="form-input" id="authPassword" placeholder="至少6位" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="authSubmitBtn">登录</button>
+        <p style="text-align:center; margin-top:16px; font-size:0.9rem;">
+          <a href="#" id="toggleAuthMode" onclick="toggleAuthMode()">没有账号？注册</a>
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+                                                                                                                                                                                                                                                    wvs-con-ticketing/frontend/admin.html                                                               0000600 0000000 0000000 00000007321 15170143304 016715  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔧 管理后台 · YAOLO</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-brand">
+        <span class="emoji">🎫</span>
+        <span>YAOLO</span>
+      </a>
+      <div class="navbar-links">
+        <a href="/" class="navbar-link">首页</a>
+        <a href="/dashboard" class="navbar-link">控制台</a>
+        <a href="/admin" class="navbar-link active">管理</a>
+      </div>
+      <div id="navAuth"></div>
+    </div>
+  </nav>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <main class="container dashboard">
+    <h1 style="font-size:1.5rem; font-weight:800; margin-bottom:24px;">🔧 管理后台</h1>
+
+    <!-- 统计 -->
+    <div class="admin-grid" id="adminStats">
+      <div class="admin-stat">
+        <div class="admin-stat-value" id="adminTotalUsers">-</div>
+        <div class="admin-stat-label">用户总数</div>
+      </div>
+      <div class="admin-stat">
+        <div class="admin-stat-value" id="adminTotalOrders">-</div>
+        <div class="admin-stat-label">订单总数</div>
+      </div>
+      <div class="admin-stat">
+        <div class="admin-stat-value" id="adminGrabbing" style="color:var(--info);">-</div>
+        <div class="admin-stat-label">抢票中</div>
+      </div>
+      <div class="admin-stat">
+        <div class="admin-stat-value" id="adminSuccess" style="color:var(--success);">-</div>
+        <div class="admin-stat-label">成功</div>
+      </div>
+      <div class="admin-stat">
+        <div class="admin-stat-value" id="adminFailed" style="color:var(--error);">-</div>
+        <div class="admin-stat-label">失败</div>
+      </div>
+      <div class="admin-stat">
+        <div class="admin-stat-value" id="adminSoldOut" style="color:var(--warning);">-</div>
+        <div class="admin-stat-label">售罄</div>
+      </div>
+    </div>
+
+    <!-- Tab -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchAdminTab('orders', this)">📋 所有订单</button>
+      <button class="tab" onclick="switchAdminTab('users', this)">👥 用户列表</button>
+    </div>
+
+    <!-- 订单列表 -->
+    <div id="adminOrdersTab" class="tab-content active">
+      <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <button class="btn btn-sm btn-secondary" onclick="loadAdminOrders()">🔄 刷新</button>
+        <select class="form-select" style="width:auto;padding:6px 32px 6px 12px;font-size:0.85rem;" id="orderStatusFilter" onchange="loadAdminOrders()">
+          <option value="">全部状态</option>
+          <option value="pending">待启动</option>
+          <option value="waiting">等待中</option>
+          <option value="grabbing">抢票中</option>
+          <option value="success">成功</option>
+          <option value="failed">失败</option>
+          <option value="sold_out">售罄</option>
+          <option value="error">异常</option>
+        </select>
+      </div>
+      <div id="adminOrdersList">加载中...</div>
+    </div>
+
+    <!-- 用户列表 -->
+    <div id="adminUsersTab" class="tab-content">
+      <div style="margin-bottom:16px;">
+        <button class="btn btn-sm btn-secondary" onclick="loadAdminUsers()">🔄 刷新</button>
+      </div>
+      <div id="adminUsersList">加载中...</div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                               wvs-con-ticketing/frontend/images/                                                                  0000755 0000000 0000000 00000000000 15170142272 016214  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/static/                                                                           0000755 0000000 0000000 00000000000 15170142272 014417  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/backend/                                                                          0000755 0000000 0000000 00000000000 15170145112 014513  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/backend/routes/                                                                   0000755 0000000 0000000 00000000000 15170145054 016041  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/backend/routes/__pycache__/                                                       0000755 0000000 0000000 00000000000 15170145054 020251  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/backend/routes/__pycache__/admin.cpython-312.pyc                                  0000600 0000000 0000000 00000016612 15170145054 024042  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+       i                             d Z ddlmZmZmZ ddlmZ ddl mZ ddl	m
+Z
+m
+Z
+mZm
+Z
+mZ  eded         Zej#                  d	d
+g 
+       ed                  Zej#                  d
+d
+g 
+       ed                  Zej#                  dd
+g 
+       ed                  Zej#                  ddg 
+       ed                  Zej#                  dd
+g 
+       ed                  Zej#                  ddg 
+       ed                  Zy)u   管理员 API 路由     ) 	Blueprint  request  jsonify) get_jwt_identity) admin_required) db User Order OrderLog SystemStatus adminz
+/api/admin) 
+url_prefixz
+/dashboard GET)  methodsc            
+            t         j                  j                          } t        j                  j                          }t        j                  j	                  d        j                          }t        j                  j	                  d        j                          }t        j                  j	                  d        j                          }t        j                  j	                  d        j                          t        j                  j	                  d        j                          z   }t        j                  j	                  d         j                          }t        j                  j
+                  t        j                  j                                 j                  d       j                          } t        | ||||||d	  | D  cg c]  }|j                             c}d
+        S c c}w )
+u   管理面板概览  pending  status grabbing  success failed error sold_out 
+   )  
+total_users total_ordersr   r   r   r   r   ) stats 
+recent_orders)r	    query countr
+    	filter_by order_by 
+created_at desc limit allr     to_dict)	r   r   r   r   r   r   r   r    os	             C/root/.openclaw/workspace/wvs-con-ticketing/backend/routes/admin.py 	dashboardr*      sg       * * " " $ K  ; ; $ $ & L  k k # # 9 # 5 ; ; = G  { { $ $ J $ 7 = = ? H  k k # # 9 # 5 ; ; = G 
+ [ [ 
+" 
+" ( 
+" 
+3 
+9 
+9 
+; e k k >S >S [b >S >c >i >i >k 
+k F  { { $ $ J $ 7 = = ? H  K K ( (  )9 )9 )> )> )@ A G G  K O O Q M 
+ & (        
+  0= = ! ! ) ) + = 
+  
+   
+    >s    <G
+z/usersc                         t         j                  j                  ddt                } t         j                  j                  ddt                }t        j
+                  j
+                  t        j                  j                                 j                  | |d         }t        |j                  D  cg c]  }|j                             c}|j                  | |j                  d        S c c}w )	u   用户列表 page      type per_page    F r,   r0    	error_out) users totalr,    pages)r    args get intr	   r   r"   r#   r$    paginater    itemsr'   r5   r6   )r,   r0   r4    us       r)    
+list_usersr=   (   s         < < 
+ 
+ F A C 
+ 
+0 D  | |   
+ B S  9 H  J J       4  4  6 7 @ @ d U] in @ o E 
+ ', { { 3 ! ! ) ) + 3        	        3s    -C$z /ordersc                    <    t         j                  j                  ddt                } t         j                  j                  ddt                }t         j                  j                  d       }t        j
+                  }|r|j
+                  |         }|j                  t        j                  j                                 j                  | |d 	       }t        |j                  D  cg c]  }|j                             c}|j                  | |j                  d
+        S c c}w )
+u   所有订单列表r,   r-   r.   r0    2   r   r   Fr2   ) ordersr5   r,   r6   )r   r7   r8   r9   r
+   r   r!   r"   r#   r$   r:   r   r;   r'   r5   r6   )r,   r0   r   r   r@   r(   s         r)    list_all_ordersrA   9   s         < < 
+ 
+ F A C 
+ 
+0 D  | |   
+ B S  9 H 
+ \ \ 
+ 
+ h 
+' F  K K E  
+    v  .  
+ ^ ^ E , , 1 1 3 
+4 
+= 
+= 4 RZ fk 
+= 
+l F 
+ (.   5 1 1 9 9 ; 5        	        5s    "Dz/orders/<int:order_id>/status PUTc                  R    t        j                  t        |        }|st         ddi       dfS t	        j
+                          }|j                  d       }|dvrt         ddi       d fS ||_        |j                  d       r
+|d   |_         |j                  d	       r
+|d	   |_        t         j                  j                           t        | d
+d
+|           }t         j                  j                  |        t         j                  j                           t         d
+|j                          d        S )u   手动更新订单状态r   u   订单不存在i   r   ) r     waitingr   r   r   r   r   u   无效状态i    order_no 
+result_detail ADMINu   状态手动更新为: ) order_id level  messageu   状态已更新)rJ    order)r   r8   r
+   r   r    get_jsonr   rE   rF     session commitr
+    addr'   )rH   rK    data 
+new_status logs        r)    update_order_statusrS   O   s        
+ F F 5 ( # E 
+    !2 3 4 c 9 9 
+ 
+ 
+ 
+ D    ( # J   e  e     0 1 3 6 6  E L  
+ x x 
+    j )    
+ x x     " ? 3    J J    
+ H G ?V Wa Vb =c 
+d C  J J N N 3   J J    
+ 0 5 = = ? K 
+L L     z/system/configc                         t         j                  j                          } t         | D  ci c]  }|j                  |j
+                     c}       S c c}w )u   获取系统配置)r   r   r&   r    key value)  configs cs     r)    get_system_configrZ   k   s=            $ $ & G 
+ G 4 q A E E 1 7 7 N 4 
+5 5  4s    A
+c            	           t        j                          } | j                          D ]y  \  }}t        j                  j
+                  |        j
+                          }|rt        |       |_         Gt        j                  j                  t         |t        |                        { t        j                  j                           t        ddi       S )u   更新系统配置)rV   )rV   rW   rJ   u   配置已更新)r   rL   r;   r   r   r!    first strrW   r   rM   rO   rN   r   )rP   rV   rW    configs       r)    update_system_configr_   s   s         
+ 
+ 
+ D  j j l  D 
+  U  # # - - # - 6 < < >  
+  u : F L  J J N N < C s 5 z B C 
+D    J J    
+ I 0 1 
+2 2rT   N)  __doc__ flaskr   r   r    flask_jwt_extendedr    authr     modelsr   r	   r
+   r
+   r    __name__ admin_bp router*   r=   rA   rS   rZ   r_     rT   r)    <module>ri      s0       -  -  /    :  : 
+ W h < 
+@   
+    u g  .       /   4 
+    5 '  *       +    
+   	 E 7  +       ,   ( 
+   / %   A  M    B M 4 
+     5 '  2  6    3 6  
+     5 '  2  
+3    3 
+3rT                                                                                                                         wvs-con-ticketing/backend/routes/__pycache__/__init__.cpython-312.pyc                               0000600 0000000 0000000 00000000476 15170145054 024512  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+       it                        (     d Z ddlmZ ddlmZ ddgZy) zRoutes package    ) 	orders_bp) admin_bpr   r   N)  __doc__ ordersr    adminr     __all__        F/root/.openclaw/workspace/wvs-con-ticketing/backend/routes/__init__.py <module>r      s           
+ 
+ 
+#  r
+                                                                                                                                                                                                     wvs-con-ticketing/backend/routes/__pycache__/orders.cpython-312.pyc                                 0000600 0000000 0000000 00000026757 15170145054 024263  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+       iP                       ,    d Z ddlZddlmZ ddlmZmZmZm Z  ddlm	Z	 ddl
+m
+Z
+ dd lm
+Z
+mZmZmZ  eded	 
+       Zej'                  d
+dg 
+       e
+d                  Zej'                  d
+dg 
+       e
+d                  Zej'                  ddg 
+       e
+d                  Zej'                  ddg 
+       e
+d                  Zej'                  ddg 
+       e
+d                  Zej'                  ddg 
+       e
+d                  Zej'                  ddg 
+       e
+d                  Zy)u   订单 API 路由     N) datetime) 	Blueprint  request  jsonify 
+current_app) get_jwt_identity) login_required) db Order OrderLog User ordersz
+/api/orders) 
+url_prefix   GET)  methodsc                    t    t                } t        j                  j                   d       }t        j                  j                   ddt                }t        j                  j                   ddt                }t
+        j                  j                  |          }|r|j                  |        }|j                  t
+        j                  j                                 }|j                  ||d	 
+       }t        |j                  D  cg c]  }|j                             c}|j                  ||j                   d
+        S c c}w )u   获取用户的订单列表 status page      type per_page    )  user_id)r   F r   r    	error_out)r    totalr    pages)r   r    args get intr
+    query 	filter_by order_by 
+created_at desc paginater    items  to_dictr   r   ) r    
+status_filterr   r   r#    
+pagination os            D/root/.openclaw/workspace/wvs-con-ticketing/backend/routes/orders.py 
+list_ordersr/      s           G  L L $ $ X . M 
+ < < 
+ 
+ F A C 
+ 
+0 D  | |   
+ B S  9 H  K K ! ! ' ! 2 E      }  5   N N 5 + + 0 0 2 3 E    T H   N J 
+ (2 (8 (8 9 1 1 9 9 ; 9  ! !   ! ! 	        9s    >D5 POSTc                   H    t                } t        j                          }|st         ddi       dfS |j	                  dd       j
+                          }|st         ddi       dfS |j	                  d d       j
+                          }|j	                  dd       j
+                          }|s|st         dd	i       dfS |j	                  d
+g d
+        }t
+        |t               r	 t        j                  |       }t        | ||j	                  dd
+       |j	                  dd       t        j                  |       ||t        |       |j	                  dd       |j	                  dd       d  
+      }t        j                  j!                  |        t        j                  j#                           t%        |j&                  dd        } t        j                  j!                  |         t        j                  j#                           t         d|j)                          d        dfS # t        $ r g d
+ }Y   2w xY w)u   创建抢票订单 erroru   请求体为空    perf_urlr   u   请填写演出 URL 	open_time presale_timeu   请设置开售时间 
+seat_prefs r   r                schedule_indexr    schedule_labelzDay 1 	tab_countr;    proxy  pending)
+r   r4   r<   r=   r7   r5   r6    
+is_presaler>   r?   r    INFOu   订单已创建) order_id level  messageu   订单创建成功 rE    order     )r   r    get_jsonr   r!    strip 
+isinstance str json loads 	Exceptionr
+    dumps boolr
+     session add commitr    idr*   )r    datar4   r5   r6   r7   rG    logs           r.    create_orderrX   &   s          G 
+ 
+ 
+ 
+ D 
+    !2 3 4 c 9 9  x x 
+ B ' - - / H 
+    !6 7 8 # = =     b ) / / 1 I  8 8 N B / 5 5 7 L 
+ \    !8 9 : C ? ?    ,  8 J   * c  " 	)    J / J  
+    x x  0 ! 4  x x  0 ' :  : : j )  !   %  ( ( ;  *  h h w  #  
+ E    J J N N 5   J J    
+ E H H F <M 
+N C  J J N N 3   J J    
+ '          	      1   	) ( J 	) s    H  
+H!  H!z/<int:order_id>c                  2    t                }t        j                  j                   | |        j	                          }|st
+        ddi       dfS |j
+                          }|j                  dd D  cg c]  }|j
+                             c}|d <   t
+        |       S c c}w )u   获取订单详情 rU   r   r2       订单不存在   i    N logs)r   r
+   r#   r$    firstr   r*   r]   )rC   r   rG   rV    ls        r.    	get_orderr`   [   s           G  K K ! ! X w ! ? E E G E 
+    !2 3 4 c 9 9 
+ = = ? D ).   C D )9 : A A I I K : D  L 
+ 4 =    ;s    ,B PUTc                  6    t                }t        j                  j                   | |        j	                          }|st
+        ddi       dfS |j                  dvrt
+        dd|j                    d  i       dfS t        j                          }g d	 }|D ]6  }||v s |d
+k(  rt        j                  ||          n||   }t        |||         8 |j                  d
+       r d|_
+        t        j                  j!                           t
+        d
+|j#                          d        S )u*   更新订单配置（仅 pending 状态）rZ   r2   r[   r\   )r@    
+   当前状态(u
+   )不可修改r3   )r4   r<   r=   r7   r5   r6   r>   r?   r7   r6   Tu   更新成功rF   )r   r
+   r#   r$   r^   r   r   r   rI   rM   rP     setattrr!   rA   r
+   rR   rT   r*   ) rC   r   rG   rV    	updatable key vals           r.    update_orderrh   i   s
+         G  K K ! ! X w ! ? E E G E 
+    !2 3 4 c 9 9   | | <  '    =     m !L M N PS S S 
+ 
+ 
+ 
+ D D I    %  
+ $ ; +. , +> $ * * T # Y ' D  I C  E 3  $  % 
+  x x        J J    
+ ~  
+ 
+  H 
+I I      DELETEc                       t                }t        j                  j                   | |        j	                          }|st
+        ddi       dfS |j                  dv rt
+        ddi       d fS t        j                  j                   |         j                           t        j                  j                  |        t        j                  j                           t
+        d	d
+i       S )
+u   删除订单rZ   r2   r[   r\   ) grabbingu   抢票中无法删除r3    rC   rE   u	   已删除)r   r
+   r#   r$   r^   r   r   r    deleter
+   rR   rT   )rC   r   rG   s      r.    delete_orderro       s           G  K K ! ! X w ! ? E E G E 
+    !2 3 4 c 9 9   | | }  $    !8 9 : C ? ?  N N   h  / 6 6 8  J J   e   J J    
+ I { + 
+, ,ri   z/<int:order_id>/startc                  D      	  t                }t        j                  j                     |        j	                          }|st
+        ddi       dfS |j                  dvrt
+        dd|j                    d  i       dfS t        j                  t        |       }|j                  |j                  |j                  rt        j                  |j                         ng d	 |j                  d
+d
+dd
+d|j                   |r|j"                  nd|r|j$                  nd|j&                  d 
+ d 	|j&                  xs |j(                  }|rT	 t+        |       dk  r/t-        j.                  t-        j0                          d d|   d        	nt-        j.                  |d        	ddl}d|_        t        j6                  j9                               	fd }|j;                  |d
+        } | j=                           t
+        d 	rt?         	       d        S dd        S # t2        $ r t
+        ddi       dfcY S w xY w)u   手动启动抢票rZ   r2   r[   r\   )r@    failedr2   rc   u
+   )无法启动r3   r8   Ti'   d   g       ?r:   r   )
+r4   r<   r7   r>    headless page_timeout max_click_retries 
+click_delay pre_open_secr?    interpark_id interpark_pwr6   N    z%Y-%m-%d  z%Y-%m-%d %H:%M:%Su/   时间格式错误，需要 YYYY-MM-DD HH:MM:SSr   rl   c                   d      ddl m}   |   t        j                         }|j	                           y )Nr   ) 
+GrabberEngine) grabber.enginer}   r
+   rR    run)r}    engine configrC    
+target_times        r.    
+run_in_threadz$start_grabber.<locals>.run_in_thread    s$       0  x     <   
+ 
+ ; ri   ) target daemonu   抢票已启动 	immediate)rE   r    ) r   r
+   r#   r$   r^   r   r   r
+   r!   r
+   r4   r<   r7   rM   rN   r>   r?   rx    interpark_pw_encryptedr6   r5    lenr    strptime now 
+ValueError 	threadingrR   rT    Thread startrL   )
+rC   r   rG    user time_strr    r     tr    r    s
+   `       @@r.    
+start_grabberr        s           G  K K ! ! X w ! ? E E G E 
+    !2 3 4 c 9 9   | | 9  9    =     m !L M N PS S S 
+
+ 6 6 $   
+  D   N N  . . 6; 6F 6F d j j  !1 !1 2 O  _ _          -1  ) ) r 7;  3 3   * *  F    K  ! ! 4 U _ _ H   	^  8 }  ! & / / 8 < < > ( 2K 1 X J 0W Yl m 
+ & / /  :M N 
+    E L  J J      
+ 	   
+ d  ; A  G G I 
+ 0 U`  [ AQ r 
+s s fq r 
+s s     	^  G %V W X Z] ] ] 	^ s    =AH  H Hz/<int:order_id>/logsc                   n    t                }t        j                  j                   | |        j	                          }|st
+        ddi       dfS t        j                  j                  ddt                 }t        j                  j                  dd	t                 }t        j                  j                   |  
+       j                  t        j                  j                                 j                  ||d
+        }t
+        |j                  D  cg c]  }|j!                             c}|j"                  d
+        S c c}w )u   获取订单日志rZ   r2   r[   r\   r   r   r   r    2   rm   Fr   )r]   r   )r   r
+   r#   r$   r^   r   r   r    r!   r"   r   r%   r&   r'   r(   r)   r*   r   ) rC   r   rG   r   r   r]   r_   s           r.    get_order_logsr        s           G  K K ! ! X w ! ? E E G E 
+    !2 3 4 c 9 9 
+ < < 
+ 
+ F A C 
+ 
+0 D  | |   
+ B S  9 H 
+ > > 
+# 
+# X 
+# 
+6 	  ( % % * * , 	- 	  t h %  	@  	   &* j j 1      1            1s     D2)  __doc__rM   r    flaskr   r   r   r     flask_jwt_extendedr    authr	    modelsr
+   r
+   r   r
+    __name__ 	orders_bp router/   rX   r`   rh   ro   r    r      ri   r.    <module>r       sf       
+    :  :  /    ,  ,  h  ] C 	  
+    e W  %       &   , 
+    f X  &  0    ' 0 f 
+   " U G  4  	    5 	  
+   " U G  4  J    5 J 4 
+   " X J  7  
+-    8 
+-   
+   ( 6 (  ;  2t    < 2t j 
+   ' %   9       :  ri                    wvs-con-ticketing/backend/routes/orders.py                                                          0000600 0000000 0000000 00000016120 15170142652 017702  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """订单 API 路由"""
+
+import json
+from datetime import datetime
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import get_jwt_identity
+
+from auth import login_required
+from models import db, Order, OrderLog, User
+
+orders_bp = Blueprint('orders', __name__, url_prefix='/api/orders')
+
+
+@orders_bp.route('', methods=['GET'])
+@login_required
+def list_orders():
+    """获取用户的订单列表"""
+    user_id = get_jwt_identity()
+    status_filter = request.args.get('status')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    query = Order.query.filter_by(user_id=user_id)
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+
+    query = query.order_by(Order.created_at.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        'orders': [o.to_dict() for o in pagination.items],
+        'total': pagination.total,
+        'page': page,
+        'pages': pagination.pages,
+    })
+
+
+@orders_bp.route('', methods=['POST'])
+@login_required
+def create_order():
+    """创建抢票订单"""
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'error': '请求体为空'}), 400
+
+    perf_url = data.get('perf_url', '').strip()
+    if not perf_url:
+        return jsonify({'error': '请填写演出 URL'}), 400
+
+    open_time = data.get('open_time', '').strip()
+    presale_time = data.get('presale_time', '').strip()
+    if not open_time and not presale_time:
+        return jsonify({'error': '请设置开售时间'}), 400
+
+    seat_prefs = data.get('seat_prefs', [0, 1, 2, 3, 4])
+    if isinstance(seat_prefs, str):
+        try:
+            seat_prefs = json.loads(seat_prefs)
+        except Exception:
+            seat_prefs = [0, 1, 2, 3, 4]
+
+    order = Order(
+        user_id=user_id,
+        perf_url=perf_url,
+        schedule_index=data.get('schedule_index', 0),
+        schedule_label=data.get('schedule_label', 'Day 1'),
+        seat_prefs=json.dumps(seat_prefs),
+        open_time=open_time,
+        presale_time=presale_time,
+        is_presale=bool(presale_time),
+        tab_count=data.get('tab_count', 4),
+        proxy=data.get('proxy', ''),
+        status='pending',
+    )
+
+    db.session.add(order)
+    db.session.commit()
+
+    log = OrderLog(order_id=order.id, level='INFO', message='订单已创建')
+    db.session.add(log)
+    db.session.commit()
+
+    return jsonify({
+        'message': '订单创建成功',
+        'order': order.to_dict(),
+    }), 201
+
+
+@orders_bp.route('/<int:order_id>', methods=['GET'])
+@login_required
+def get_order(order_id):
+    """获取订单详情"""
+    user_id = get_jwt_identity()
+    order = Order.query.filter_by(id=order_id, user_id=user_id).first()
+    if not order:
+        return jsonify({'error': '订单不存在'}), 404
+
+    data = order.to_dict()
+    data['logs'] = [l.to_dict() for l in order.logs[-50:]]
+    return jsonify(data)
+
+
+@orders_bp.route('/<int:order_id>', methods=['PUT'])
+@login_required
+def update_order(order_id):
+    """更新订单配置（仅 pending 状态）"""
+    user_id = get_jwt_identity()
+    order = Order.query.filter_by(id=order_id, user_id=user_id).first()
+    if not order:
+        return jsonify({'error': '订单不存在'}), 404
+
+    if order.status not in ('pending',):
+        return jsonify({'error': f'当前状态({order.status})不可修改'}), 400
+
+    data = request.get_json()
+    updatable = ['perf_url', 'schedule_index', 'schedule_label', 'seat_prefs',
+                 'open_time', 'presale_time', 'tab_count', 'proxy']
+
+    for key in updatable:
+        if key in data:
+            val = json.dumps(data[key]) if key == 'seat_prefs' else data[key]
+            setattr(order, key, val)
+
+    if data.get('presale_time'):
+        order.is_presale = True
+
+    db.session.commit()
+    return jsonify({'message': '更新成功', 'order': order.to_dict()})
+
+
+@orders_bp.route('/<int:order_id>', methods=['DELETE'])
+@login_required
+def delete_order(order_id):
+    """删除订单"""
+    user_id = get_jwt_identity()
+    order = Order.query.filter_by(id=order_id, user_id=user_id).first()
+    if not order:
+        return jsonify({'error': '订单不存在'}), 404
+
+    if order.status in ('grabbing',):
+        return jsonify({'error': '抢票中无法删除'}), 400
+
+    OrderLog.query.filter_by(order_id=order_id).delete()
+    db.session.delete(order)
+    db.session.commit()
+    return jsonify({'message': '已删除'})
+
+
+@orders_bp.route('/<int:order_id>/start', methods=['POST'])
+@login_required
+def start_grabber(order_id):
+    """手动启动抢票"""
+    user_id = get_jwt_identity()
+    order = Order.query.filter_by(id=order_id, user_id=user_id).first()
+    if not order:
+        return jsonify({'error': '订单不存在'}), 404
+
+    if order.status not in ('pending', 'failed', 'error'):
+        return jsonify({'error': f'当前状态({order.status})无法启动'}), 400
+
+    user = db.get(User, user_id)
+
+    config = {
+        'perf_url': order.perf_url,
+        'schedule_index': order.schedule_index,
+        'seat_prefs': json.loads(order.seat_prefs) if order.seat_prefs else [0, 1, 2, 3, 4],
+        'tab_count': order.tab_count,
+        'headless': True,
+        'page_timeout': 10000,
+        'max_click_retries': 100,
+        'click_delay': 0.05,
+        'pre_open_sec': 3,
+        'proxy': order.proxy,
+        'interpark_id': user.interpark_id if user else '',
+        'interpark_pw': user.interpark_pw_encrypted if user else '',
+        'presale_time': order.presale_time,
+    }
+
+    target_time = None
+    time_str = order.presale_time or order.open_time
+    if time_str:
+        try:
+            if len(time_str) <= 8:
+                target_time = datetime.strptime(f"{datetime.now():%Y-%m-%d} {time_str}", '%Y-%m-%d %H:%M:%S')
+            else:
+                target_time = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return jsonify({'error': '时间格式错误，需要 YYYY-MM-DD HH:MM:SS'}), 400
+
+    import threading
+    order.status = 'grabbing'
+    db.session.commit()
+
+    def run_in_thread():
+        from grabber.engine import GrabberEngine
+        engine = GrabberEngine(order_id, config, db.session)
+        engine.run(target_time)
+
+    t = threading.Thread(target=run_in_thread, daemon=True)
+    t.start()
+    return jsonify({'message': '抢票已启动', 'target_time': str(target_time) if target_time else 'immediate'})
+
+
+@orders_bp.route('/<int:order_id>/logs', methods=['GET'])
+@login_required
+def get_order_logs(order_id):
+    """获取订单日志"""
+    user_id = get_jwt_identity()
+    order = Order.query.filter_by(id=order_id, user_id=user_id).first()
+    if not order:
+        return jsonify({'error': '订单不存在'}), 404
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+
+    logs = OrderLog.query.filter_by(order_id=order_id) \
+        .order_by(OrderLog.created_at.desc()) \
+        .paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        'logs': [l.to_dict() for l in logs.items],
+        'total': logs.total,
+    })
+                                                                                                                                                                                                                                                                                                                                                                                                                                                wvs-con-ticketing/backend/routes/admin.py                                                           0000600 0000000 0000000 00000007645 15170142620 017503  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """管理员 API 路由"""
+
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import get_jwt_identity
+
+from auth import admin_required
+from models import db, User, Order, OrderLog, SystemStatus
+
+admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+
+
+@admin_bp.route('/dashboard', methods=['GET'])
+@admin_required
+def dashboard():
+    """管理面板概览"""
+    total_users = User.query.count()
+    total_orders = Order.query.count()
+    pending = Order.query.filter_by(status='pending').count()
+    grabbing = Order.query.filter_by(status='grabbing').count()
+    success = Order.query.filter_by(status='success').count()
+    failed = Order.query.filter_by(status='failed').count() + Order.query.filter_by(status='error').count()
+    sold_out = Order.query.filter_by(status='sold_out').count()
+
+    recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
+
+    return jsonify({
+        'stats': {
+            'total_users': total_users,
+            'total_orders': total_orders,
+            'pending': pending,
+            'grabbing': grabbing,
+            'success': success,
+            'failed': failed,
+            'sold_out': sold_out,
+        },
+        'recent_orders': [o.to_dict() for o in recent_orders],
+    })
+
+
+@admin_bp.route('/users', methods=['GET'])
+@admin_required
+def list_users():
+    """用户列表"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    users = User.query.order_by(User.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        'users': [u.to_dict() for u in users.items],
+        'total': users.total,
+        'page': page,
+        'pages': users.pages,
+    })
+
+
+@admin_bp.route('/orders', methods=['GET'])
+@admin_required
+def list_all_orders():
+    """所有订单列表"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    status = request.args.get('status')
+
+    query = Order.query
+    if status:
+        query = query.filter_by(status=status)
+
+    orders = query.order_by(Order.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        'orders': [o.to_dict() for o in orders.items],
+        'total': orders.total,
+        'page': page,
+        'pages': orders.pages,
+    })
+
+
+@admin_bp.route('/orders/<int:order_id>/status', methods=['PUT'])
+@admin_required
+def update_order_status(order_id):
+    """手动更新订单状态"""
+    order = db.get(Order, order_id)
+    if not order:
+        return jsonify({'error': '订单不存在'}), 404
+
+    data = request.get_json()
+    new_status = data.get('status')
+    if new_status not in ('pending', 'waiting', 'grabbing', 'success', 'failed', 'sold_out', 'error'):
+        return jsonify({'error': '无效状态'}), 400
+
+    order.status = new_status
+    if data.get('order_no'):
+        order.order_no = data['order_no']
+    if data.get('result_detail'):
+        order.result_detail = data['result_detail']
+
+    db.session.commit()
+
+    log = OrderLog(order_id=order_id, level='ADMIN', message=f'状态手动更新为: {new_status}')
+    db.session.add(log)
+    db.session.commit()
+
+    return jsonify({'message': '状态已更新', 'order': order.to_dict()})
+
+
+@admin_bp.route('/system/config', methods=['GET'])
+@admin_required
+def get_system_config():
+    """获取系统配置"""
+    configs = SystemStatus.query.all()
+    return jsonify({c.key: c.value for c in configs})
+
+
+@admin_bp.route('/system/config', methods=['PUT'])
+@admin_required
+def update_system_config():
+    """更新系统配置"""
+    data = request.get_json()
+    for key, value in data.items():
+        config = SystemStatus.query.filter_by(key=key).first()
+        if config:
+            config.value = str(value)
+        else:
+            db.session.add(SystemStatus(key=key, value=str(value)))
+    db.session.commit()
+    return jsonify({'message': '配置已更新'})
+                                                                                           wvs-con-ticketing/backend/routes/__init__.py                                                        0000600 0000000 0000000 00000000164 15170142652 020144  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """Routes package"""
+from .orders import orders_bp
+from .admin import admin_bp
+
+__all__ = ['orders_bp', 'admin_bp']
+                                                                                                                                                                                                                                                                                                                                                                                                            wvs-con-ticketing/backend/app.py                                                                    0000600 0000000 0000000 00000012037 15170142674 015652  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """Flask 主应用"""
+
+import os
+import sys
+
+# 确保能导入同目录模块
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity
+
+from config import config_map
+from models import db, User, Order, OrderLog
+from auth import login_required, admin_required
+from routes.orders import orders_bp
+from routes.admin import admin_bp
+
+def create_app(config_name=None):
+    if config_name is None:
+        config_name = os.environ.get('FLASK_ENV', 'default')
+
+    app = Flask(__name__, static_folder='../frontend', static_url_path='')
+    app.config.from_object(config_map[config_name])
+
+    # 确保目录存在
+    os.makedirs(app.config.get('LOG_DIR', 'logs'), exist_ok=True)
+    os.makedirs(app.config.get('SCREENSHOT_DIR', 'screenshots'), exist_ok=True)
+
+    # 初始化扩展
+    CORS(app)
+    db.init_app(app)
+    JWTManager(app)
+
+    # 注册蓝图
+    app.register_blueprint(orders_bp)
+    app.register_blueprint(admin_bp)
+
+    # ---- 认证 API ----
+
+    @app.route('/api/auth/register', methods=['POST'])
+    def register():
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '请求体为空'}), 400
+
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+
+        if not username or not email or not password:
+            return jsonify({'error': '请填写完整信息'}), 400
+        if len(password) < 6:
+            return jsonify({'error': '密码至少6位'}), 400
+
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': '用户名已存在'}), 409
+        if User.query.filter_by(email=email).first():
+            return jsonify({'error': '邮箱已注册'}), 409
+
+        user = User(username=username, email=email)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+        token = create_access_token(identity=user.id)
+        return jsonify({
+            'message': '注册成功',
+            'token': token,
+            'user': user.to_dict(),
+        }), 201
+
+    @app.route('/api/auth/login', methods=['POST'])
+    def login():
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '请求体为空'}), 400
+
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+
+        user = User.query.filter(
+            (User.username == username) | (User.email == username)
+        ).first()
+
+        if not user or not user.check_password(password):
+            return jsonify({'error': '用户名或密码错误'}), 401
+
+        token = create_access_token(identity=user.id)
+        return jsonify({
+            'message': '登录成功',
+            'token': token,
+            'user': user.to_dict(),
+        })
+
+    @app.route('/api/auth/me', methods=['GET'])
+    @login_required
+    def get_me():
+        user_id = get_jwt_identity()
+        user = db.get(User, user_id)
+        if not user:
+            return jsonify({'error': '用户不存在'}), 404
+        return jsonify(user.to_dict())
+
+    @app.route('/api/auth/profile', methods=['PUT'])
+    @login_required
+    def update_profile():
+        user_id = get_jwt_identity()
+        user = db.get(User, user_id)
+        if not user:
+            return jsonify({'error': '用户不存在'}), 404
+
+        data = request.get_json()
+        if 'interpark_id' in data:
+            user.interpark_id = data['interpark_id']
+        if 'interpark_pw' in data:
+            user.interpark_pw_encrypted = data['interpark_pw']
+        if 'weverse_id' in data:
+            user.weverse_id = data['weverse_id']
+        if 'has_presale' in data:
+            user.has_presale = bool(data['has_presale'])
+
+        db.session.commit()
+        return jsonify({'message': '更新成功', 'user': user.to_dict()})
+
+    # ---- 静态文件 ----
+
+    @app.route('/')
+    def index():
+        return app.send_static_file('index.html')
+
+    @app.route('/dashboard')
+    def dashboard_page():
+        return app.send_static_file('dashboard.html')
+
+    @app.route('/admin')
+    def admin_page():
+        return app.send_static_file('admin.html')
+
+    # ---- 健康检查 ----
+
+    @app.route('/api/health')
+    def health():
+        return jsonify({'status': 'ok', 'service': 'wvs-con-ticketing'})
+
+    # ---- 创建数据库 ----
+
+    with app.app_context():
+        db.create_all()
+
+        # 创建默认管理员
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            admin = User(username='admin', email='admin@wvs.local', is_admin=True)
+            admin.set_password('admin123')
+            db.session.add(admin)
+            db.session.commit()
+
+    return app
+
+
+if __name__ == '__main__':
+    app = create_app()
+    print("🎫 Weverse Con 2026 抢票系统启动")
+    print("📡 http://localhost:5000")
+    print("👤 管理员: admin / admin123")
+    app.run(host='0.0.0.0', port=5000, debug=True)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 wvs-con-ticketing/backend/grabber/                                                                  0000755 0000000 0000000 00000000000 15170142547 016130  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/backend/grabber/engine.py                                                         0000600 0000000 0000000 00000047325 15170142547 017752  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """抢票引擎 — 基于 Playwright 的自动化核心"""
+
+import os
+import re
+import json
+import time
+import logging
+import threading
+from datetime import datetime
+from typing import Optional, Dict, List
+
+logger = logging.getLogger("grabber.engine")
+
+SEAT_LABELS = {
+    0: 'VIP 站席',
+    1: 'VIP 坐席',
+    2: 'SR',
+    3: 'R',
+    4: 'S',
+    5: 'A',
+}
+
+
+class Timer:
+    """精确倒计时"""
+
+    @staticmethod
+    def wait(target: datetime, pre_sec: int = 3, callback=None):
+        now = datetime.now()
+        diff = (target - now).total_seconds()
+
+        if diff <= 0:
+            if callback:
+                callback('warning', '已过开售时间，立即开始！')
+            return
+
+        if diff > pre_sec + 15:
+            sleep_until = diff - pre_sec - 10
+            if callback:
+                callback('info', f'距开售 {diff:.0f}s，先等 {sleep_until:.0f}s...')
+            time.sleep(sleep_until)
+
+        while True:
+            rem = (target - datetime.now()).total_seconds()
+            if rem <= pre_sec:
+                break
+            if rem <= 60 and callback:
+                callback('info', f'⏱️ {rem:.1f}s')
+            time.sleep(0.1)
+
+        if callback:
+            callback('info', f'🚀 冲刺阶段！{rem:.2f}s')
+        while datetime.now() < target:
+            pass
+        if callback:
+            callback('info', '🎉 开售！！！')
+
+
+class GrabberEngine:
+    """抢票引擎"""
+
+    def __init__(self, order_id: int, config: dict, db_session=None):
+        self.order_id = order_id
+        self.cfg = config
+        self.db = db_session
+        self.pw = None
+        self.browser = None
+        self.context = None
+        self.lock = threading.Lock()
+        self._won = False
+        self._status = 'init'
+        self._logs = []
+
+    def log(self, level: str, msg: str):
+        entry = {'time': datetime.now().isoformat(), 'level': level, 'message': msg}
+        self._logs.append(entry)
+        getattr(logger, level if level in ('debug', 'info', 'warning', 'error') else 'info', logger.info)(
+            f"[Order#{self.order_id}] {msg}"
+        )
+        if self.db:
+            try:
+                from models import OrderLog
+                self.db.add(OrderLog(order_id=self.order_id, level=level.upper(), message=msg))
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+
+    def _update_order(self, **kwargs):
+        if not self.db:
+            return
+        try:
+            from models import Order
+            order = self.db.get(Order, self.order_id)
+            if order:
+                for k, v in kwargs.items():
+                    setattr(order, k, v)
+                order.updated_at = datetime.utcnow()
+                self.db.commit()
+        except Exception:
+            self.db.rollback()
+
+    def _mark_win(self, tab_id: int, order_no: str = ''):
+        with self.lock:
+            if not self._won:
+                self._won = True
+                self._status = 'success'
+                self._update_order(status='success', order_no=order_no, grabber_tab=tab_id)
+
+    @property
+    def won(self):
+        with self.lock:
+            return self._won
+
+    def start_browser(self):
+        from playwright.sync_api import sync_playwright
+        self.pw = sync_playwright().start()
+        proxy = self.cfg.get('proxy', '')
+        launch_args = {
+            'headless': self.cfg.get('headless', True),
+            'slow_mo': self.cfg.get('slow_mo', 20),
+            'args': [
+                '--disable-blink-features=AutomationControlled',
+                '--no-sandbox', '--disable-dev-shm-usage',
+                '--disable-infobars', '--disable-extensions',
+            ],
+        }
+        if proxy:
+            launch_args['proxy'] = {"server": proxy}
+        self.browser = self.pw.chromium.launch(**launch_args)
+        ctx_opts = {
+            'viewport': {'width': 1366, 'height': 768},
+            'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'locale': 'ko-KR', 'timezone_id': 'Asia/Seoul', 'ignore_https_errors': True,
+        }
+        state_file = f"state_order_{self.order_id}.json"
+        if os.path.exists(state_file):
+            ctx_opts['storage_state'] = state_file
+            self.log('info', f'加载登录态')
+        self.context = self.browser.new_context(**ctx_opts)
+        self.context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            delete navigator.__proto__.webdriver;
+            window.chrome = {runtime: {}, loadTimes: function(){}, csi: function(){}};
+            Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR','ko','en-US','en']});
+        """)
+        self.log('info', '浏览器已启动')
+
+    def new_page(self):
+        page = self.context.new_page()
+        page.set_default_timeout(self.cfg.get('page_timeout', 10000))
+        return page
+
+    def save_state(self):
+        try:
+            state = self.context.storage_state()
+            with open(f"state_order_{self.order_id}.json", 'w') as f:
+                json.dump(state, f)
+        except Exception:
+            pass
+
+    def close_browser(self):
+        for obj in [self.context, self.browser, self.pw]:
+            try:
+                if obj:
+                    if hasattr(obj, 'close'):
+                        obj.close()
+                    elif hasattr(obj, 'stop'):
+                        obj.stop()
+            except Exception:
+                pass
+
+    def _click(self, page, selectors: List[str], timeout: int = 2000) -> bool:
+        for sel in selectors:
+            try:
+                if sel.startswith('text=') or 'has-text' in sel:
+                    page.locator(sel).first.click(timeout=timeout)
+                else:
+                    page.click(sel, timeout=timeout)
+                return True
+            except Exception:
+                continue
+        return False
+
+    def _fill(self, page, selectors: List[str], value: str) -> bool:
+        for sel in selectors:
+            try:
+                page.fill(sel, value, timeout=2000)
+                return True
+            except Exception:
+                continue
+        return False
+
+    def _click_nth(self, page, selector: str, index: int) -> bool:
+        try:
+            els = page.query_selector_all(selector)
+            if els and len(els) > index:
+                els[index].click()
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _shot(self, page, name: str):
+        os.makedirs("screenshots", exist_ok=True)
+        p = f"screenshots/order{self.order_id}_{name}_{datetime.now():%H%M%S}.png"
+        try:
+            page.screenshot(path=p, full_page=True)
+        except Exception:
+            pass
+        return p
+
+    def login(self) -> bool:
+        self.log('info', '🔐 登录 Interpark...')
+        interpark_id = self.cfg.get('interpark_id', '')
+        interpark_pw = self.cfg.get('interpark_pw', '')
+        if not interpark_id:
+            page = self.new_page()
+            page.goto("https://tickets.interpark.com")
+            time.sleep(2)
+            if 'login' not in page.url.lower():
+                self.log('info', '✅ 已有登录态')
+                return True
+            self.log('error', '需要登录但未配置账号')
+            return False
+        page = self.new_page()
+        page.goto("https://accounts.interpark.com/login")
+        time.sleep(2)
+        self._fill(page, ['#userId', 'input[name="userId"]', 'input[id="id"]', 'input[placeholder*="아이디"]'], interpark_id)
+        self._fill(page, ['#userPwd', 'input[name="userPwd"]', 'input[type="password"]'], interpark_pw)
+        time.sleep(0.5)
+        self._click(page, ['#btn_login', 'button:has-text("로그인")', 'button[type="submit"]', '.btn_login'])
+        time.sleep(3)
+        if 'login' in page.url.lower() or 'account' in page.url.lower():
+            self._shot(page, 'login_help')
+            self.log('warning', '登录未自动完成')
+            return False
+        self.save_state()
+        self.log('info', '✅ 登录成功')
+        return True
+
+    def goto_perf(self, page) -> bool:
+        url = self.cfg.get('perf_url', '')
+        if not url:
+            self.log('error', '未配置演出 URL')
+            return False
+        try:
+            page.goto(url, wait_until='domcontentloaded', timeout=15000)
+        except Exception as e:
+            self.log('warning', f'页面加载慢: {e}')
+        time.sleep(2)
+        return True
+
+    def pick_schedule(self, page, idx: int):
+        self.log('info', f'📅 选择第 {idx + 1} 场')
+        for sel in ['.schedule_list li', '.date_list li', '#scheduleList li', '.tab_list li', '.sch_list li']:
+            if self._click_nth(page, sel, idx):
+                self.log('info', '✅ 场次已选择')
+                return
+        for sel in ['#scheduleNo', 'select[name="scheduleNo"]', '#goodsSelect']:
+            try:
+                opts = page.query_selector_all(f'{sel} option')
+                if opts and len(opts) > idx:
+                    page.select_option(sel, opts[idx].get_attribute('value'))
+                    self.log('info', '✅ 场次下拉已选择')
+                    return
+            except Exception:
+                continue
+
+    def click_booking(self, page) -> bool:
+        self.log('info', '🛒 点击预约...')
+        booking_sels = [
+            'text=예매하기', 'text=바로예매', 'text=예매',
+            '#btnBooking', '.btn_booking', '.btn-reserve',
+            'a[href*="Booking"]', 'button:has-text("예매")',
+            'button:has-text("바로")', 'a:has-text("예매")',
+        ]
+        max_retries = self.cfg.get('max_click_retries', 100)
+        delay = self.cfg.get('click_delay', 0.05)
+        for attempt in range(max_retries):
+            if self.won:
+                return False
+            if self._click(page, booking_sels, timeout=300):
+                self.log('info', f'✅ 预约按钮已点击 (第{attempt + 1}次)')
+                time.sleep(2)
+                return True
+            time.sleep(delay)
+        try:
+            for btn in page.query_selector_all('a, button'):
+                try:
+                    text = btn.inner_text()
+                    if any(kw in text for kw in ['예매', '예약', '구매', '바로예매']):
+                        btn.click()
+                        self.log('info', f'✅ 兜底点击: {text}')
+                        time.sleep(2)
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        self._shot(page, 'no_booking')
+        self.log('error', '找不到预约按钮')
+        return False
+
+    def handle_popup(self, page) -> bool:
+        try:
+            pages = self.context.pages
+            if len(pages) > 1:
+                new = pages[-1]
+                new.wait_for_load_state('domcontentloaded', timeout=8000)
+                self.log('info', f'🪟 新窗口: {new.url[:80]}')
+                return True
+        except Exception:
+            pass
+        return False
+
+    def pick_grade(self, page, prefs: List[int]) -> bool:
+        for idx in prefs:
+            if self.won:
+                return False
+            label = SEAT_LABELS.get(idx, f'#{idx + 1}')
+            self.log('info', f'🎯 尝试等级: {label}')
+            for sel in ['.seat_grade_list li', '.grade_list li', '#seatGradeList li', '.grade_item', '.seatGrade li', '.price_list li', '#tblGrade tr', 'ul.seat_list li']:
+                if self._click_nth(page, sel, idx):
+                    time.sleep(0.2)
+                    try:
+                        els = page.query_selector_all(sel)
+                        if els and idx < len(els):
+                            txt = els[idx].inner_text()
+                            if any(k in txt for k in ['매진', '0석', 'Sold', '품절']):
+                                self.log('warning', f'{label} 售罄')
+                                break
+                    except Exception:
+                        pass
+                    self.log('info', f'✅ 等级 {label}')
+                    return True
+            for sel in ['#seatGradeNo', 'select[name="seatGradeNo"]', 'select.grade']:
+                try:
+                    opts = page.query_selector_all(f'{sel} option')
+                    if opts and len(opts) > idx:
+                        txt = opts[idx].inner_text()
+                        if any(k in txt for k in ['매진', '0석']):
+                            continue
+                        page.select_option(sel, opts[idx].get_attribute('value'))
+                        self.log('info', f'✅ 下拉等级 {label}')
+                        return True
+                except Exception:
+                    continue
+        self.log('error', '所有等级均不可选')
+        return False
+
+    def pick_seat(self, page) -> bool:
+        self.log('info', '💺 选座...')
+        sels = ['.seat:not(.sold):not(.disabled):not(.reserved)', '.seat[status="available"]', 'td.seat.available', 'td.seat:not(.sold)']
+        for sel in sels:
+            seats = page.query_selector_all(sel)
+            if seats:
+                self.log('info', f'找到 {len(seats)} 个可选座')
+                mid = len(seats) // 2
+                for offset in range(len(seats)):
+                    for i in [mid + offset, mid - offset]:
+                        if 0 <= i < len(seats):
+                            try:
+                                seats[i].click()
+                                self.log('info', '✅ 选座成功')
+                                return True
+                            except Exception:
+                                continue
+        self.log('info', '系统分配座位模式')
+        return True
+
+    def handle_captcha(self, page) -> bool:
+        sels = ['#captcha', '#Captcha', '.captcha_area', 'img[src*="captcha"]', '#captchaImage']
+        for sel in sels:
+            if page.query_selector(sel):
+                self._shot(page, 'captcha')
+                self.log('warning', '🔐 需要验证码，已截图')
+                return True
+        return True
+
+    def do_submit(self, page) -> bool:
+        self.log('info', '📤 提交订单...')
+        sels = ['#btnSubmit', '#btnConfirm', '#btnNext', 'text=다음', 'text=확인', 'text=결제',
+                'text=예매확인', 'text=다음단계', 'text=결제하기', 'text=예매확정',
+                'button:has-text("다음")', 'button:has-text("확인")', 'button:has-text("결제")']
+        for step in range(3):
+            if self._click(page, sels, timeout=3000):
+                self.log('info', f'第{step + 1}步提交成功')
+                time.sleep(2)
+            else:
+                break
+        return True
+
+    def check_result(self, page) -> str:
+        time.sleep(2)
+        self._shot(page, 'result')
+        content = page.content()
+        if any(k in content for k in ['예매완료', '예매확인', '주문완료', '결제완료', '예매성공']):
+            self.log('info', '🎉🎉🎉 抢票成功！！！')
+            m = re.search(r'(?:주문|예매)(?:번호|확인)\s*[:\s]*(\d+)', content)
+            order_no = m.group(1) if m else ''
+            if order_no:
+                self.log('info', f'📋 订单号: {order_no}')
+            return order_no or 'success'
+        if any(k in content for k in ['매진', 'Sold Out', '좌석없음', '품절']):
+            self.log('error', '😢 已售罄')
+            return 'sold_out'
+        self.log('info', '状态未知')
+        return 'unknown'
+
+    def _tab_worker(self, tab_id: int, page) -> str:
+        try:
+            if self.won:
+                return 'other_won'
+            self.pick_schedule(page, self.cfg.get('schedule_index', 0))
+            if not self.click_booking(page):
+                return 'booking_fail'
+            if self.won:
+                return 'other_won'
+            self.handle_popup(page)
+            pages = self.context.pages
+            work_page = pages[-1] if len(pages) > 1 else page
+            if not self.pick_grade(work_page, self.cfg.get('seat_prefs', [0, 1, 2, 3, 4])):
+                return 'grade_fail'
+            self.pick_seat(work_page)
+            self.handle_captcha(work_page)
+            self.do_submit(work_page)
+            result = self.check_result(work_page)
+            if result not in ('sold_out', 'unknown', 'other_won'):
+                self._mark_win(tab_id, result)
+                return 'success'
+            return result
+        except Exception as e:
+            self.log('error', f'[Tab {tab_id}] 异常: {e}')
+            return 'error'
+
+    def run(self, target_time: Optional[datetime] = None) -> Dict:
+        self._status = 'running'
+        self._update_order(status='grabbing')
+        self.log('info', '=' * 50)
+        self.log('info', '🎫 Weverse Con 2026 抢票引擎启动')
+        self.log('info', f'📄 {self.cfg.get("perf_url", "N/A")}')
+        if target_time:
+            kind = "会员预售" if self.cfg.get('presale_time') else "一般开售"
+            self.log('info', f'⏰ {kind}: {target_time}')
+        self.log('info', '=' * 50)
+        result = {'status': 'pending', 'order_id': self.order_id}
+        try:
+            self.start_browser()
+            if not self.login():
+                result['status'] = 'login_failed'
+                self._update_order(status='failed', result_detail='登录失败')
+                return result
+            tabs = self.cfg.get('tab_count', 4)
+            if tabs == 1:
+                page = self.new_page()
+                self.goto_perf(page)
+                if target_time:
+                    Timer.wait(target_time, self.cfg.get('pre_open_sec', 3), self.log)
+                status = self._tab_worker(1, page)
+                result['status'] = status
+            else:
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                pages = []
+                for i in range(tabs):
+                    p = self.new_page()
+                    pages.append(p)
+                    try:
+                        p.goto(self.cfg.get('perf_url', ''), wait_until='domcontentloaded', timeout=15000)
+                    except Exception:
+                        pass
+                    self.log('info', f'[Tab {i + 1}] 预加载完成')
+                    time.sleep(0.15)
+                if target_time:
+                    Timer.wait(target_time, self.cfg.get('pre_open_sec', 3), self.log)
+                with ThreadPoolExecutor(max_workers=tabs) as pool:
+                    futures = {}
+                    for i in range(tabs):
+                        f = pool.submit(self._tab_worker, i + 1, pages[i])
+                        futures[f] = i + 1
+                    for f in as_completed(futures):
+                        tab_id = futures[f]
+                        try:
+                            status = f.result()
+                            self.log('info', f'[Tab {tab_id}] 结果: {status}')
+                            if status == 'success':
+                                break
+                        except Exception as e:
+                            self.log('error', f'[Tab {tab_id}] 异常: {e}')
+                result['status'] = 'success' if self._won else 'failed'
+            if result['status'] != 'success':
+                self._update_order(status=result['status'], result_detail=json.dumps(self._logs[-5:]))
+            return result
+        except Exception as e:
+            self.log('error', f'引擎异常: {e}')
+            result['status'] = 'error'
+            self._update_order(status='error', result_detail=str(e))
+            return result
+        finally:
+            self.save_state()
+            self.close_browser()
+
+    def get_logs(self) -> list:
+        return list(self._logs)
+                                                                                                                                                                                                                                                                                                           wvs-con-ticketing/backend/grabber/__init__.py                                                       0000600 0000000 0000000 00000000213 15170142463 020222  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """Grabber package"""
+from .engine import GrabberEngine
+from .scheduler import TaskScheduler
+
+__all__ = ['GrabberEngine', 'TaskScheduler']
+                                                                                                                                                                                                                                                                                                                                                                                     wvs-con-ticketing/backend/grabber/scheduler.py                                                      0000600 0000000 0000000 00000005347 15170142456 020460  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """任务调度器 — 管理抢票任务的定时执行"""
+
+import logging
+from datetime import datetime
+from typing import Dict
+
+logger = logging.getLogger("grabber.scheduler")
+
+
+class TaskScheduler:
+    """简单的任务调度管理"""
+
+    def __init__(self, db_session_factory):
+        self.db_factory = db_session_factory
+        self._active_jobs: Dict[int, dict] = {}
+
+    def schedule_order(self, order_id: int, target_time: datetime, config: dict):
+        """调度一个抢票任务"""
+        import threading
+
+        delay = (target_time - datetime.now()).total_seconds()
+
+        if delay < -60:
+            logger.warning(f"Order#{order_id}: 开售时间已过 {abs(delay):.0f}s，放弃")
+            return False
+
+        job_info = {
+            'order_id': order_id,
+            'target_time': target_time,
+            'config': config,
+            'thread': None,
+            'status': 'scheduled',
+        }
+
+        def run_grabber():
+            try:
+                job_info['status'] = 'running'
+                logger.info(f"Order#{order_id}: 启动抢票引擎")
+
+                from .engine import GrabberEngine
+                db = self.db_factory()
+                engine = GrabberEngine(order_id, config, db)
+                result = engine.run(target_time)
+                logger.info(f"Order#{order_id}: 结果 = {result['status']}")
+                job_info['status'] = result['status']
+            except Exception as e:
+                logger.error(f"Order#{order_id}: 执行异常: {e}")
+                job_info['status'] = 'error'
+            finally:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+        if delay > 30:
+            # 在开售前 10 秒启动引擎
+            import time
+            wait_time = max(0, delay - 10)
+
+            def delayed_start():
+                time.sleep(wait_time)
+                run_grabber()
+
+            t = threading.Thread(target=delayed_start, daemon=True)
+        else:
+            t = threading.Thread(target=run_grabber, daemon=True)
+
+        t.start()
+        job_info['thread'] = t
+        self._active_jobs[order_id] = job_info
+        logger.info(f"Order#{order_id}: 已调度，{delay:.0f}s 后执行")
+        return True
+
+    def get_job_status(self, order_id: int) -> dict:
+        return self._active_jobs.get(order_id, {'status': 'not_found'})
+
+    def cancel_order(self, order_id: int) -> bool:
+        job = self._active_jobs.get(order_id)
+        if job and job['status'] == 'scheduled':
+            job['status'] = 'cancelled'
+            return True
+        return False
+
+    @property
+    def active_count(self):
+        return sum(1 for j in self._active_jobs.values() if j['status'] in ('scheduled', 'running'))
+                                                                                                                                                                                                                                                                                         wvs-con-ticketing/backend/config.py                                                                 0000600 0000000 0000000 00000002113 15170142350 016320  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """配置管理"""
+
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+class Config:
+    """基础配置"""
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'wvs-con-2026-secret-key-change-in-production')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "wvs.db")}')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt-wvs-secret-key')
+    JWT_ACCESS_TOKEN_EXPIRES = 86400  # 24h
+
+    # 抢票引擎默认配置
+    GRABBER_HEADLESS = True
+    GRABBER_TAB_COUNT = 4
+    GRABBER_PRE_OPEN_SEC = 3
+    GRABBER_PAGE_TIMEOUT = 10000
+    GRABBER_MAX_CLICK_RETRIES = 100
+
+    # 文件路径
+    LOG_DIR = os.path.join(BASE_DIR, '..', 'logs')
+    SCREENSHOT_DIR = os.path.join(BASE_DIR, '..', 'screenshots')
+
+
+class DevelopmentConfig(Config):
+    DEBUG = True
+    GRABBER_HEADLESS = False
+
+
+class ProductionConfig(Config):
+    DEBUG = False
+    GRABBER_HEADLESS = True
+
+
+config_map = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'default': DevelopmentConfig,
+}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                     wvs-con-ticketing/backend/models.py                                                                 0000600 0000000 0000000 00000011334 15170142350 016343  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """数据库模型"""
+
+from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+
+db = SQLAlchemy()
+
+
+class User(db.Model):
+    """用户"""
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Interpark 凭证 (加密存储)
+    interpark_id = db.Column(db.String(200), default='')
+    interpark_pw_encrypted = db.Column(db.String(500), default='')
+    weverse_id = db.Column(db.String(200), default='')
+    has_presale = db.Column(db.Boolean, default=False)
+
+    orders = db.relationship('Order', backref='user', lazy=True)
+
+    def set_password(self, pw):
+        self.password_hash = generate_password_hash(pw)
+
+    def check_password(self, pw):
+        return check_password_hash(self.password_hash, pw)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'is_admin': self.is_admin,
+            'has_presale': self.has_presale,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Order(db.Model):
+    """抢票订单"""
+    __tablename__ = 'orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # 演出信息
+    perf_url = db.Column(db.String(500), default='')
+    schedule_index = db.Column(db.Integer, default=0)
+    schedule_label = db.Column(db.String(100), default='Day 1')
+
+    # 座位偏好 [0=VIP站, 1=VIP坐, 2=SR, 3=R, 4=S, 5=A]
+    seat_prefs = db.Column(db.String(100), default='[0,1,2,3,4]')
+
+    # 时间配置
+    open_time = db.Column(db.String(50), default='')
+    presale_time = db.Column(db.String(50), default='')
+    is_presale = db.Column(db.Boolean, default=False)
+
+    # 并发配置
+    tab_count = db.Column(db.Integer, default=4)
+
+    # 代理
+    proxy = db.Column(db.String(200), default='')
+
+    # 状态
+    status = db.Column(db.String(30), default='pending')
+    # pending -> waiting -> grabbing -> success / failed / sold_out / error
+
+    # 结果
+    order_no = db.Column(db.String(100), default='')
+    grabber_tab = db.Column(db.Integer, default=0)
+    result_detail = db.Column(db.Text, default='')
+
+    # 截图
+    screenshot_path = db.Column(db.String(300), default='')
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    logs = db.relationship('OrderLog', backref='order', lazy=True, order_by='OrderLog.created_at')
+
+    def to_dict(self):
+        import json
+        seat = []
+        try:
+            seat = json.loads(self.seat_prefs)
+        except Exception:
+            pass
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'perf_url': self.perf_url,
+            'schedule_index': self.schedule_index,
+            'schedule_label': self.schedule_label,
+            'seat_prefs': seat,
+            'open_time': self.open_time,
+            'presale_time': self.presale_time,
+            'is_presale': self.is_presale,
+            'tab_count': self.tab_count,
+            'status': self.status,
+            'order_no': self.order_no,
+            'result_detail': self.result_detail,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class OrderLog(db.Model):
+    """订单日志"""
+    __tablename__ = 'order_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    level = db.Column(db.String(10), default='INFO')
+    message = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'level': self.level,
+            'message': self.message,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class SystemStatus(db.Model):
+    """系统状态"""
+    __tablename__ = 'system_status'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False)
+    value = db.Column(db.Text, default='')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+                                                                                                                                                                                                                                                                                                    wvs-con-ticketing/backend/init_db.py                                                                0000600 0000000 0000000 00000001241 15170142674 016475  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """数据库初始化脚本"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from app import create_app
+from models import db, User
+
+app = create_app()
+
+with app.app_context():
+    db.create_all()
+
+    # 创建管理员账号
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(username='admin', email='admin@wvs.local', is_admin=True)
+        admin.set_password('admin123')
+        db.session.add(admin)
+        print("✅ 创建管理员账号: admin / admin123")
+    else:
+        print("ℹ️ 管理员已存在")
+
+    db.session.commit()
+    print("✅ 数据库初始化完成")
+                                                                                                                                                                                                                                                                                                                                                               wvs-con-ticketing/backend/__pycache__/                                                              0000755 0000000 0000000 00000000000 15170145054 016730  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/backend/__pycache__/models.cpython-312.pyc                                        0000600 0000000 0000000 00000020115 15170145054 022705  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+       i                              d Z ddlmZ ddlmZ ddlmZmZ  e        Z  G d  de j                         Z	 G d   de j                         Z
+ G d	  d
+e j                         Z
+ G d
+  de j                         Zy
+)u   数据库模型     ) datetime) 
+SQLAlchemy) generate_password_hash check_password_hashc                         e Zd ZdZdZej
+                  ej                  d        Zej
+                  ej                  d       dd         Z
+ej
+                  ej                  d       dd         Z
+ej
+                  ej                  d	       d 
+       Zej
+                  ej                  d 
+       Zej
+                  ej                  ej"                   
+       Zej
+                  ej                  d       d
+ 
+       Zej
+                  ej                  d       d
+ 
+       Zej
+                  ej                  d       d
+ 
+       Zej
+                  ej                  d 
+       Zej/                  ddd        Zd  Zd  Zd  Zy) Useru   用户 usersT  
+primary_key P   F  unique nullable x        r      default            Order user)  backref lazyc                  $     t        |       | _        y  N)r    
+password_hash  self pws      =/root/.openclaw/workspace/wvs-con-ticketing/backend/models.py set_passwordzUser.set_password   s      3 B 7       c                  .     t        | j                  |       S r   )r   r   r   s     r"    check_passwordzUser.check_password    s      " 4 #5 #5 r : :r$   c                         | j                   | j                  | j                  | j                  | j                  | j
+                  r| j
+                  j
+                          d S d d S )N) id username email is_admin 
+has_presale 
+created_at) r(   r)   r*   r+   r,   r-    	isoformat r    s    r"     to_dictzUser.to_dict#   sX       ' '  
+ 
+  Z Z  
+ 
+  + + 9=   $ / / 3 3 5 
+ 
+   	
+  OS 
+ 
+   	
+r$   N) __name__ 
+__module__ __qualname__  __doc__ 
+__tablename__ db Column  Integerr(    Stringr)   r*   r     Booleanr+    DateTimer    utcnowr-    interpark_id interpark_pw_encrypted 
+weverse_idr,    relationship ordersr#   r&   r0     r$   r"   r   r   
+   s,       M 	
+   2 : : 4  	0 B  y y    2  t e y D H  I I b i i  n T E I B E  I I b i i  n u I = M  y y    U y 3 H    2 ; ;     @ J   9 9 R Y Y s ^ R 9 8 L  Y Y r y y  ~ r Y B     2 9 9 S > 2  6 J  ) ) B J J  ) 6 K 
+ _ _ W f 4 _ 
+@ F 8 ; 
+r$   r   c                        e Zd ZdZdZej
+                  ej                  d        Zej
+                  ej                  ej                  d       d         Z
+ej
+                  ej                  d       d	 
+       Zej
+                  ej                  d
+ 
+       Z
+ej
+                  ej                  d       d
+ 
+       Zej
+                  ej                  d       d 
+       Zej
+                  ej                  d       d	 
+       Zej
+                  ej                  d       d	 
+       Zej
+                  ej$                  d 
+       Zej
+                  ej                  d 
+       Zej
+                  ej                  d       d	 
+       Zej
+                  ej                  d       d 
+       Zej
+                  ej                  d       d	 
+       Zej
+                  ej                  d
+ 
+       Zej
+                  ej2                  d	 
+       Zej
+                  ej                  d       d	 
+       Zej
+                  ej8                  ej<                   
+       Zej
+                  ej8                  ej<                  ej<                          Z ejC                  dddd        Z"d  Z#y)r   u   抢票订单rA   Tr
+   zusers.idFr   r   r   r   r    d   zDay 1z
+[0,1,2,3,4] 2       r         pendingi,   r    onupdate OrderLog orderzOrderLog.created_at)r   r    order_byc                      dd l }g }	 |j                  | j                         }| j                  | j
+                  | j                  | j                  | j                  || j                  | j                  | j                  | j                  | j                  | j                  | j                  | j                   r| j                   j#                          nd | j$                  r| j$                  j#                          d S d d S # t        $ r Y   w xY w)Nr   )r(     user_id perf_url schedule_index schedule_label 
+seat_prefs 	open_time presale_time 
+is_presale 	tab_count status order_no 
+result_detailr-    
+updated_at) json loadsrS    	Exceptionr(   rO   rP   rQ   rR   rT   rU   rV   rW   rX   rY   rZ   r-   r.   r[   )r    r\    seats      r"   r0   z
+Order.to_dictY   s          	  : : d o o . D   ' '  | |  
+ 
+ " 1 1 " 1 1       - -  / /     k k  
+ 
+ ! / / 9=   $ / / 3 3 5 d 9=   $ / / 3 3 5 
+  	
+  OS 
+  	
+     	  	 s    C;  ;	D  D N)$r1   r2   r3   r4   r5   r6   r7   r8   r(    
+ForeignKeyrO   r9   rP   rQ   rR   rS   rT   rU   r:   rV   rW    proxyrX   rY    
+grabber_tab TextrZ    screenshot_pathr;   r   r<   r-   r[   r@    logsr0   rB   r$   r"   r   r   .   s        M 	
+   2 : : 4  	0 B  i i  
+ 
+ B M M * $=  i N G   y y    3   y 4 H  Y Y r z z 1 Y 5 N  Y Y r y y  ~ w Y ? N     2 9 9 S > =  A J   	 	 " ) ) B -  	 4 I  9 9 R Y Y r ] B 9 7 L    2 : : u  5 J   	 	 " * * a 	 0 I  
+ I I b i i  n b I 1 E   Y Y r y y  } i Y 
+8 F   y y    3   y 4 H  ) ) B J J  ) 2 K  I I b g g r I 2 M   i i  	 	 #   i ; O    2 ; ;     @ J    2 ; ;    ( / /  Z J 
+
+ ? ? : w T La ? 
+b D 
+r$   r   c                    z    e Zd ZdZdZej
+                  ej                  d        Zej
+                  ej                  ej                  d       d         Z
+ej
+                  ej                  d       d	 
+       Zej
+                  ej                  d
+ 
+       Zej
+                  ej                  ej"                   
+       Zd  Zy
+)rK   u   订单日志 
+order_logsTr
+   z	orders.idFr    
+    INFOr   r   c                       | j                   | j                  | j                  | j                  | j                  r| j                  j
+                          d S d d S )N)r(    order_id level  messager-   )r(   rk   rl   rm   r-   r.   r/   s    r"   r0   zOrderLog.to_dict}   sO       ' '  
+ 
+  Z Z  | | 9=   $ / / 3 3 5 
+
+  	
+ 
+ OS 
+
+  	
+r$   N)r1   r2   r3   r4   r5   r6   r7   r8   r(   r`   rk   r9   rl   rc   rm   r;   r   r<   r-   r0   rB   r$   r"   rK   rK   s   s          M 	
+   2 : : 4  	0 B  y y    R ] ] ; %? % y P H  I I b i i  m V I 4 E  i i       i , G    2 ; ;     @ J  
+r$   rK   c                    2    e Zd ZdZdZej
+                  ej                  d        Zej
+                  ej                  d       dd         Z
+ej
+                  ej                  d 	       Zej
+                  ej                  ej                  ej                   
+       Zy
+) SystemStatusu   系统状态 
+system_statusTr
+   rE   Fr
+   r   r   rI   N)r1   r2   r3   r4   r5   r6   r7   r8   r(   r9    keyrc    valuer;   r   r<   r[   rB   r$   r"   ro   ro       sr       # M 	
+   2 : : 4  	0 B 
+ ) ) B I I b M $  ) 
+? C  I I b g g r I * E    2 ; ;    ( / /  Z Jr$   ro   N)
+r4   r    flask_sqlalchemyr    werkzeug.securityr   r   r6    Modelr   r   rK   ro   rB   r$   r"    <module>rv      s^          '  I  \  !
+ 2 8 8  !
+ HB
+ B H H  B
+ J
+ r x x  
+ ( [ 2 8 8   [r$                                                                                                                                                                                                                                                                                                                                                                                                                                                      wvs-con-ticketing/backend/__pycache__/config.cpython-312.pyc                                        0000600 0000000 0000000 00000003741 15170145054 022675  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+       iK                             d Z ddlZej                  j                   ej                  j	                  e              Z G d  d       Z  G d  de        Z G d   de        Z	ee	ed	 Z
+y)
+u   配置管理     Nc                        e Zd ZdZej
+                  j
+                  dd       Z ej
+                  j
+                  ddej                  j                  e
+d                 Z
+d Zej
+                  j
+                  dd	       Z
+d
+Zd
+ZdZd
+ZdZdZej                  j                  e
+dd       Zej                  j                  e
+dd       Zy) Configu   基础配置 
+SECRET_KEYz,wvs-con-2026-secret-key-change-in-production DATABASE_URLz
+sqlite:///zwvs.dbF JWT_SECRET_KEYzjwt-wvs-secret-keyi Q T        i'   d   z.. logs 
+screenshotsN) __name__ 
+__module__ __qualname__  __doc__ os  environ getr    path join BASE_DIR SQLALCHEMY_DATABASE_URI SQLALCHEMY_TRACK_MODIFICATIONSr     JWT_ACCESS_TOKEN_EXPIRES GRABBER_HEADLESS GRABBER_TAB_COUNT GRABBER_PRE_OPEN_SEC GRABBER_PAGE_TIMEOUT GRABBER_MAX_CLICK_RETRIES  LOG_DIR SCREENSHOT_DIR        =/root/.openclaw/workspace/wvs-con-ticketing/backend/config.pyr   r      s              .\ ] J   j j n n ^ z " ' ' , , W_ ai Jj Ik =l m  %* "  Z Z ^ ^ $4 6J K N $             #    g g l l 8 T 6 2 G  W W \ \ ( D - @ Nr"   r   c                         e Zd ZdZdZy) DevelopmentConfigTFN r
+   r   r    DEBUGr   r!   r"   r#   r%   r%      s
+       E  r"   r%   c                         e Zd ZdZdZy) ProductionConfigFTNr&   r!   r"   r#   r)   r)   !   s
+       E  r"   r)   ) 
+development 
+production  default)
+r   r   r     dirname  abspath __file__r   r   r%   r)    
+config_mapr!   r"   r#    <module>r1      s`        	 
+
+ 7 7 ? ? 2 7 7 ? ? 8 4 
+5  A  A (    
+ v    % "     
+r"                                  wvs-con-ticketing/backend/__pycache__/auth.cpython-312.pyc                                          0000600 0000000 0000000 00000004032 15170145054 022363  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+    m  iC                       R     d Z ddlmZ ddlmZ ddlmZm Z  ddlm	Z	m
+Z
+ d  Z
+d   Zd  Z
+y	)
+u   JWT 认证装饰器       wraps)  jsonify) get_jwt_identity verify_jwt_in_request) User dbc                  .       t                   fd         }|S )Nc                   f      	 t                   | i |  S # t        $ r t        ddi       dfcY S w xY w)N error    请先登录   )r     	Exceptionr   ) args kwargs fs       ;/root/.openclaw/workspace/wvs-con-ticketing/backend/auth.py 	decoratedz!login_required.<locals>.decorated
+   sF       	; ! #   $ ! & ! !     	;  G ^ 4 5 s : : 	; s    
+  0 0r    r   r   s   ` r    login_requiredr   	   s!       
+ 1 X "   "        c                  .       t                   fd         }|S )Nc                          	 t                 t                }t        j                  t        |       }|r|j
+                  st
+        ddi       dfS 	   | i |  S # t        $ r t
+        ddi       dfcY S w xY w)Nr   u   需要管理员权限i   r
+   r   )r    r   r	    getr    is_adminr   r   )r   r     user_id userr   s        r   r   z!admin_required.<locals>.decorated   s         	; ! # & ( G  6 6 $   ( D  t } }    )@ A B C G G   -   $ ! & ! !     	;  G ^ 4 5 s : : 	; s    A
+A  A2 1A2r   r   s   ` r    admin_requiredr      s!       
+ 1 X 	"   	"   r   c                   ~     	 t                 t                } t        j                  t        |        S # t
+        $ r Y y w xY w)N)r    r   r	   r   r   r   )r   s    r    get_current_userr    #   s8         " $    v v d G $ $  
+     s    -0  	< <N)  __doc__ 	functoolsr    flaskr    flask_jwt_extendedr   r     modelsr   r	   r   r   r      r   r    <module>r'      s#            F     r                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         wvs-con-ticketing/backend/__pycache__/app.cpython-312.pyc                                           0000600 0000000 0000000 00000021262 15170144705 022210  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                    
+
+       i                           d Z ddlZddlZej                  j	                  dej                  j
+                  ej                  j
+                  e                       ddlm	Z	m
+Z
+m
+Z
+ ddlm
+Z
+ ddlmZmZmZ ddlmZ dd lmZmZmZmZ ddlmZmZ dd	lmZ dd
+lmZ dd
+ Z e!dk(  r4 e         Z" e#d
+         e#d         e#d        e"jI                  ddd         yy)u   Flask 主应用     N) Flask  jsonify  request) CORS) 
+JWTManager create_access_token get_jwt_identity) 
+config_map) db User Order OrderLog) login_required admin_required) 	orders_bp) admin_bpc                  f   
+  |   t         j                  j                  dd       } t         t        dd         
+ 
+j
+                  j
+                  t        |            t        j                   
+j
+                  j                  dd        d 	        t        j                   
+j
+                  j                  d
+d
+       d 	        t         
+        t        j                   
+        t         
+         
+j                  t                 
+j                  t                 
+j!                  dd
+g        d          } 
+j!                  dd
+g        d          } 
+j!                  ddg        t"        d                  } 
+j!                  ddg        t"        d                  } 
+j!                  d        
+fd         } 
+j!                  d        
+fd         } 
+j!                  d        
+fd         }  
+j!                  d       d          } 
+j%                          5  t        j&                           t(        j*                  j-                  d  !       j/                          }	|	s\t)        d d"d #       }	|	j1                  d$        t        j2                  j5                  |	        t        j2                  j7                           d d d          
+S # 1 sw Y    
+S xY w)%N 	FLASK_ENV  defaultz
+../frontend  ) 
+static_folder static_url_path  LOG_DIR logsT) exist_ok SCREENSHOT_DIR 
+screenshotsz/api/auth/register POST)  methodsc                   h    t        j                          } | st        ddi       dfS | j                   dd       j	                          }| j                   dd       j	                          }| j                   d d       }|r|r|st        ddi       dfS t
+        |       d	k  rt        dd
+i       dfS t        j                  j                  | 
+       j                          rt        ddi       d
+fS t        j                  j                  |        j                          rt        ddi       d
+fS t
+        ||        }|j                  |        t        j                  j                  |        t        j                  j                           t        |j                           }t        d||j#                          d        dfS )N error    请求体为空    usernamer    email passwordu   请填写完整信息    u   密码至少6位 r$   u   用户名已存在i   )r%   u   邮箱已注册)r$   r%     identityu   注册成功   message token user     )r    get_jsonr    get strip lenr    query 	filter_by first set_passwordr
+     session add commitr    id  to_dict) datar$   r%   r&   r.   r-   s          :/root/.openclaw/workspace/wvs-con-ticketing/backend/app.py registerzcreate_app.<locals>.register)   s         !    G %6 7 8 # = =  8 8 J  + 1 1 3      " % + + -   8 8 J  +   u H  G %< = >  C C 
+ x = 1 
+  G %7 8 9 3 > > 
+ : : 
+ 
+  
+ 
+2 
+8 
+8 
+:  G %9 : ; S @ @ 
+ : : 
+ 
+ e 
+ 
+, 
+2 
+2 
+4  G %6 7 8 # = =  X U 3     ( # 
+ 
+ 
+   t  
+ 
+ 
+    # T W W 5   %   L L N  
+  
+  
+ 	  	     z/api/auth/loginc                        t        j                          } | st        ddi       dfS | j                   dd       j	                          }| j                   dd       }t
+        j                  j                  t
+        j                  |k(  t
+        j                  |k(  z          j                          }|r|j                  |       st        dd i       dfS t        |j                   	       }t        d
+||j                          d
+        S )Nr!   r"   r#   r$   r   r&   u   用户名或密码错误i   r)   u   登录成功r+   )r   r0   r   r1   r2   r   r4    filterr$   r%   r6    check_passwordr   r;   r<   )r=   r$   r&   r.   r-   s        r>    loginzcreate_app.<locals>.loginI   s          !    G %6 7 8 # = =  8 8 J  + 1 1 3   8 8 J  +   z z     
+ ] ] h 
+& 4 : :  +A B 
+ 
+ % '  	
+   4 . . x 8  G %? @ A 3 F F # T W W 5   %   L L N  
+  
+  	
+r@   z/api/auth/me GETc                        t                } t        j                  t        |        }|st	        ddi       dfS t	        |j
+                                 S )Nr!       用户不存在   )r	   r
+   r1   r   r   r<   )  user_idr.   s     r>    get_mezcreate_app.<locals>.get_me`   sF       # $    v v d G $    G %6 7 8 # = =  t | | ~ & &r@   z/api/auth/profile PUTc                       t                } t        j                  t        |        }|st	        ddi       dfS t
+        j                          }d|v r
+|d   |_         d|v r
+|d   |_        d|v r
+|d   |_	        d |v rt        |d           |_
+        t        j                  j                           t	        d|j                          d	        S )
+Nr!   rG   rH    interpark_id interpark_pw 
+weverse_id 
+has_presaleu   更新成功)r,   r.   )r	   r
+   r1   r   r   r   r0   rM    interpark_pw_encryptedrO    boolrP   r8   r:   r<   )rI   r.   r=   s      r>    update_profilez"create_app.<locals>.update_profilei   s        # $    v v d G $    G %6 7 8 # = =    !  
+ T 
+!  $ ^  4 D  
+ T 
+! *. ~ *> D ' 
+ 4 
+ " < 0 D O 
+ D 
+  # D  $7 8 D  
+ 
+ 
+     > 4 < < > J K Kr@    /c                   &        j                  d       S )Nz
+index.html  send_static_file  apps    r>    indexzcreate_app.<locals>.index             # # L 1 1r@   z
+/dashboardc                   &        j                  d       S )Nzdashboard.htmlrV   rX   s    r>    dashboard_pagez"create_app.<locals>.dashboard_page    s        # # $4 5 5r@   z/adminc                   &        j                  d       S )Nz
+admin.htmlrV   rX   s    r>    
+admin_pagezcreate_app.<locals>.admin_page    r[   r@   z
+/api/healthc                        t        ddd        S )N okzwvs-con-ticketing) status  service)r     r@   r>    healthzcreate_app.<locals>.health    s       $ 3F G H Hr@    adminr(   zadmin@wvs.local)r$   r%    is_admin admin123) os  environr1   r    __name__ config 
+from_objectr
+    makedirsr   r
+    init_appr     register_blueprintr   r    router    
+app_context 
+create_allr   r4   r5   r6   r7   r8   r9   r:   )
+ 
+config_namer?   rD   rJ   rS   rZ   r]   r_   re   rf   rY   s
+             @r>    
+create_appru      sd           j j n n [ ) < 
+ 
+  
+ r 
+J C   J J   : k 2 3    K K  
+ 
+   y & 1 D A  K K  
+ 
+   /  ? $ O  	  I  K K    s O     9 %     8 $  	 Y Y # f X Y 6   7  > 	 Y Y   6 ( Y 3 
+  4 
+ , 	 Y Y ~  w Y /  '    0 '  	 Y Y " U G Y 4  L    5 L * 	 Y Y s ^ 2   2  	 Y Y |  6   6  	 Y Y x  2   2 
+ 	 Y Y }  I   I 
+ 
+
+   	  	  
+ 
+ 
+    
+ 
+ $ $ g $ 6 < < >    ' 1B T R E    z *  J J N N 5 !  J J    	    J 	    J s
+    ;B!J& &J0  __main__u(   🎫 Weverse Con 2026 抢票系统启动u   📡 http://localhost:5000u    👤 管理员: admin / admin123z 0.0.0.0i   T) host port debug)N)%  __doc__ri    sys path insert  dirname  abspath __file__ flaskr   r   r    
+flask_corsr    flask_jwt_extendedr    r   r	   rl   r
+    modelsr
+   r   r
+   r    authr   r    
+routes.ordersr    routes.adminr   ru   rk   rY    print runrd   r@   r>    <module>r       s         	  
+        2 7 7 ? ? 2 7 7 ? ? 8 #< =  >  )  )    P  P    ,  ,  /  #  ! L ^  z  
+ , C 	 
+4 5 	 
+& ' 	 
+, -   G G   T G 2 
+ r@                                                                                                                                                                                                                                                                                                                                                 wvs-con-ticketing/backend/auth.py                                                                   0000600 0000000 0000000 00000002103 15170142555 016022  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   """JWT 认证装饰器"""
+
+from functools import wraps
+from flask import jsonify
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from models import User, db
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            verify_jwt_in_request()
+        except Exception:
+            return jsonify({'error': '请先登录'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            verify_jwt_in_request()
+            user_id = get_jwt_identity()
+            user = db.get(User, user_id)
+            if not user or not user.is_admin:
+                return jsonify({'error': '需要管理员权限'}), 403
+        except Exception:
+            return jsonify({'error': '请先登录'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_current_user():
+    try:
+        verify_jwt_in_request()
+        user_id = get_jwt_identity()
+        return db.get(User, user_id)
+    except Exception:
+        return None
+                                                                                                                                                                                                                                                                                                                                                                                                                                                             wvs-con-ticketing/backend/requirements.txt                                                          0000600 0000000 0000000 00000000232 15170142350 017765  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   Flask==3.1.1
+Flask-SQLAlchemy==3.1.1
+Flask-JWT-Extended==4.7.1
+Flask-CORS==5.0.1
+flask-sock==0.7.0
+APScheduler==3.11.0
+playwright==1.52.0
+Werkzeug==3.1.3
+                                                                                                                                                                                                                                                                                                                                                                      wvs-con-ticketing/USAGE.md                                                                          0000600 0000000 0000000 00000022627 15170145521 014317  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   # 🎫 YAOLO Weverse Con 2026 抢票系统 — 使用说明
+
+## 一、环境准备
+
+### 系统要求
+- Python 3.8+
+- 操作系统：Linux / macOS / Windows
+
+### 安装依赖
+
+```bash
+cd wvs-con-ticketing
+
+# 安装 Python 依赖
+pip install -r backend/requirements.txt
+
+# 安装 Playwright 浏览器（首次）
+playwright install chromium
+```
+
+> ⚠️ 如果系统提示 `externally-managed-environment`，加 `--break-system-packages` 参数，或使用虚拟环境：
+> ```bash
+> python3 -m venv venv
+> source venv/bin/activate
+> pip install -r backend/requirements.txt
+> playwright install chromium
+> ```
+
+---
+
+## 二、启动系统
+
+### 方式一：一键启动（推荐）
+
+```bash
+cd wvs-con-ticketing
+bash start.sh
+```
+
+### 方式二：手动启动
+
+```bash
+cd wvs-con-ticketing/backend
+
+# 初始化数据库（首次运行）
+python init_db.py
+
+# 启动后端
+python app.py
+```
+
+启动后输出：
+```
+🎫 Weverse Con 2026 抢票系统启动
+📡 http://localhost:5000
+👤 管理员: admin / admin123
+```
+
+### 打开前端
+
+浏览器访问：**http://localhost:5000**
+
+前端页面由 Flask 直接托管，无需额外启动静态服务。
+
+---
+
+## 三、使用流程
+
+### 第 1 步：注册账号
+
+1. 打开首页，点击右上角 **「登录」**
+2. 切换到 **「注册」** 标签
+3. 填写用户名、邮箱、密码（至少6位）
+4. 点击注册，自动登录
+
+### 第 2 步：配置 Interpark 凭证
+
+1. 登录后点击右上角用户名进入 **「控制台」**
+2. 展开 **「账号设置」** 区域
+3. 填写：
+   - **Interpark 账号** — 你在 tickets.interpark.com 的用户名
+   - **Interpark 密码** — 对应密码
+   - **Weverse ID** — 可选
+   - **是否拥有预售资格** — 勾选后提交订单时会显示预售时间输入
+4. 点击 **「保存设置」**
+
+> 🔒 凭证仅存储在本地数据库，不会外传。抢票引擎启动时读取凭证登录 Interpark。
+
+### 第 3 步：创建抢票订单
+
+在控制台的 **「新建抢票订单」** 区域操作：
+
+#### 3.1 选择模式
+
+| 模式 | 说明 |
+|------|------|
+| 🔥 会员预售 | 有 Weverse 会员资格，需要填写预售时间 |
+| 🎫 一般开售 | 公开售票，填写开售时间 |
+| ⬆️ 升舱 | 已持有低等级票，自动检测高等级余票 |
+
+#### 3.2 填写信息
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| 演出 URL | ✅ | 在 Interpark 上找到 Weverse Con 2026 演出页，复制完整 URL |
+| 场次 | ✅ | Day 1 或 Day 2 |
+| 并发标签页数 | ✅ | 1~6 个，推荐 4 个 |
+| 会员预售时间 | 预售时必填 | 韩国时间 (KST = UTC+9)，格式 `2026-06-10 20:00:00` |
+| 一般开售时间 | 公售时必填 | 同上 |
+| 座位偏好 | ✅ | 按勾选顺序优先尝试，默认 VIP站 > VIP坐 > SR > R > S |
+| 代理 | 可选 | `socks5://host:port` 或 `http://host:port` |
+
+#### 3.3 提交
+
+点击 **「创建抢票订单」**，订单状态变为 `pending`（待启动）。
+
+### 第 4 步：启动抢票
+
+在订单列表中找到目标订单，点击 **「🚀 启动」**。
+
+系统行为：
+1. 启动 Playwright 无头浏览器
+2. 登录 Interpark（使用你配置的凭证）
+3. 如果设置了开售时间，会精确倒计时到开售前 3 秒
+4. 开售瞬间，多个标签页同时点击「예매하기」（预约按钮）
+5. 自动选择座位等级（按你设的偏好顺序）
+6. 自动选座 / 系统分配
+7. 处理验证码（截图保存，需手动处理）
+8. 提交订单
+9. 检查结果，成功时发出声音提醒
+
+### 第 5 步：查看结果
+
+- 订单列表实时显示状态徽章
+- 点击 **「📋 详情」** 查看完整运行日志
+- 成功的订单会显示 **订单号**
+- 截图保存在 `screenshots/` 目录
+
+---
+
+## 四、管理员后台
+
+默认管理员账号：`admin` / `admin123`
+
+登录后导航栏会出现 **「管理」** 入口。
+
+### 功能
+
+| 功能 | 说明 |
+|------|------|
+| 统计面板 | 用户总数、订单总数、各状态计数 |
+| 所有订单 | 全局查看所有用户订单，支持状态筛选和修改 |
+| 用户列表 | 查看所有注册用户信息 |
+
+---
+
+## 五、API 接口一览
+
+所有接口前缀：`http://localhost:5000`
+
+### 认证
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/register` | 注册 `{username, email, password}` |
+| POST | `/api/auth/login` | 登录 `{username, password}` → 返回 JWT |
+| GET | `/api/auth/me` | 获取当前用户信息（需 Bearer Token） |
+| PUT | `/api/auth/profile` | 更新凭证 `{interpark_id, interpark_pw, ...}` |
+
+### 订单
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/orders` | 我的订单列表 `?status=&page=&per_page=` |
+| POST | `/api/orders` | 创建订单 |
+| GET | `/api/orders/:id` | 订单详情（含日志） |
+| PUT | `/api/orders/:id` | 修改订单（仅 pending 状态） |
+| DELETE | `/api/orders/:id` | 删除订单 |
+| POST | `/api/orders/:id/start` | 启动抢票引擎 |
+| GET | `/api/orders/:id/logs` | 订单运行日志 |
+
+### 管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/admin/dashboard` | 统计概览 |
+| GET | `/api/admin/users` | 用户列表 |
+| GET | `/api/admin/orders` | 所有订单 `?status=` |
+| PUT | `/api/admin/orders/:id/status` | 修改订单状态 |
+
+---
+
+## 六、配置文件参考
+
+首次使用可以创建 `wvs_con_config.json` 用于 CLI 模式：
+
+```json
+{
+  "interpark_id": "your_id",
+  "interpark_pw": "your_password",
+  "weverse_id": "your_weverse_id",
+  "has_presale": true,
+  "perf_url": "https://tickets.interpark.com/goods/12345",
+  "schedule_index": 0,
+  "seat_prefs": [0, 1, 2, 3, 4],
+  "open_time": "2026-06-14 20:00:00",
+  "presale_time": "2026-06-10 20:00:00",
+  "pre_open_sec": 3,
+  "headless": false,
+  "tab_count": 4,
+  "page_timeout": 10000,
+  "max_click_retries": 100,
+  "click_delay": 0.05,
+  "proxy": ""
+}
+```
+
+### CLI 模式（不用 Web 界面）
+
+```bash
+cd wvs-con-ticketing/backend
+
+# 保存登录态（首次）
+python -m grabber.engine --login-only -c wvs_con_config.json
+
+# 会员预售抢票
+python -m grabber.engine -c wvs_con_config.json --time "2026-06-10 20:00:00"
+
+# 一般开售，6个标签页
+python -m grabber.engine -c wvs_con_config.json --time "2026-06-14 20:00:00" --tabs 6
+```
+
+> CLI 模式直接调用原版 `wvs_con.py` 的核心逻辑，无需启动 Web 服务。
+
+---
+
+## 七、座位等级说明
+
+| 代号 | 等级 | 说明 |
+|------|------|------|
+| 0 | VIP 站席 | 最贵，最靠近舞台 |
+| 1 | VIP 坐席 | 有座位的 VIP 区 |
+| 2 | SR | 次高等级 |
+| 3 | R | 中等偏上 |
+| 4 | S | 中等 |
+| 5 | A | 最便宜 |
+
+系统按你勾选的顺序从高到低尝试，某等级售罄自动跳到下一个。
+
+---
+
+## 八、常见问题
+
+### Q: 登录 Interpark 失败怎么办？
+A: 可能遇到验证码或二次认证。Web 界面模式下，把 `headless` 设为 `false`（默认），浏览器窗口会弹出，手动完成登录后系统会保存登录态。
+
+### Q: 抢票时遇到验证码？
+A: 系统会自动截图保存到 `screenshots/` 目录，日志中会提示。无头模式下需要手动在浏览器中输入。
+
+### Q: 可以同时抢多场吗？
+A: 可以，创建多个不同场次的订单分别启动即可。
+
+### Q: 代理怎么配？
+A: 如果你在国内访问 Interpark 慢，可以配置韩国代理：`socks5://kr-proxy.example.com:1080`
+
+### Q: 前端页面打不开？
+A: 确认后端已启动（`python app.py`），浏览器访问 `http://localhost:5000`。如果改了端口，需要修改 `frontend/js/api.js` 中的 `API.BASE` 地址。
+
+### Q: 抢票成功后怎么确认？
+A: 系统会在抢票成功时：
+1. 发出声音提醒（5 次 beep）
+2. 自动截图保存到 `screenshots/`
+3. 提取订单号显示在界面上
+4. 你需要在 30 分钟内登录 Interpark 完成付款
+
+---
+
+## 九、目录结构
+
+```
+wvs-con-ticketing/
+├── start.sh                    # 一键启动
+├── README.md                   # 项目说明
+├── USAGE.md                    # ← 你正在看的文件
+├── backend/
+│   ├── app.py                  # Flask 主应用
+│   ├── config.py               # 配置
+│   ├── models.py               # 数据库模型
+│   ├── auth.py                 # JWT 认证
+│   ├── init_db.py              # 数据库初始化
+│   ├── requirements.txt        # Python 依赖
+│   ├── wvs.db                  # SQLite 数据库（运行后生成）
+│   ├── grabber/
+│   │   ├── engine.py           # 🎯 核心抢票引擎
+│   │   └── scheduler.py        # 定时调度
+│   └── routes/
+│       ├── orders.py           # 订单 API
+│       └── admin.py            # 管理 API
+├── frontend/
+│   ├── index.html              # 首页
+│   ├── dashboard.html          # 控制台
+│   ├── admin.html              # 管理后台
+│   ├── css/style.css           # 样式
+│   └── js/
+│       ├── api.js              # API 客户端
+│       ├── auth.js             # 认证
+│       ├── app.js              # 首页
+│       ├── dashboard.js        # 控制台
+│       └── admin.js            # 管理
+├── screenshots/                # 抢票截图（运行后生成）
+└── logs/                       # 运行日志（运行后生成）
+```
+
+---
+
+## 十、免责声明
+
+本系统仅供学习研究使用。自动化抢票可能违反 Interpark 的服务条款，使用前请自行评估风险。开发者不对因使用本系统导致的任何损失负责。
+                                                                                                         wvs-con-ticketing/logs/                                                                             0000755 0000000 0000000 00000000000 15170145054 014075  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                   wvs-con-ticketing/start.sh                                                                          0000711 0000000 0000000 00000001202 15170143350 014605  0                                                                                                    ustar   root                            root                                                                                                                                                                                                                   #!/bin/bash
+# YAOLO Weverse Con 2026 抢票系统 — 启动脚本
+
+set -e
+
+echo "========================================="
+echo "  🎫 YAOLO Weverse Con 2026 抢票系统"
+echo "========================================="
+echo ""
+
+cd "$(dirname "$0")"
+
+# 检查依赖
+echo "📦 检查依赖..."
+pip3 install -q -r backend/requirements.txt 2>/dev/null || pip3 install -r backend/requirements.txt
+
+# 初始化数据库
+echo "🗄️ 初始化数据库..."
+cd backend
+python3 init_db.py
+
+# 启动后端
+echo ""
+echo "🚀 启动后端服务..."
+echo "📡 http://localhost:5000"
+echo "👤 管理员: admin / admin123"
+echo ""
+python3 app.py
+                                                                                                                                                                                                                                                                                                                                                                                              wvs-con-ticketing/screenshots/                                                                      0000755 0000000 0000000 00000000000 15170145054 015471  5                                                                                                    ustar   root                            root                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   

@@ -23,7 +23,7 @@ def admin_required(f):
         try:
             verify_jwt_in_request()
             user_id = get_jwt_identity()
-            user = db.get(User, user_id)
+            user = User.query.get(user_id)
             if not user or not user.is_admin:
                 return jsonify({'error': '需要管理员权限'}), 403
         except Exception:
@@ -36,6 +36,6 @@ def get_current_user():
     try:
         verify_jwt_in_request()
         user_id = get_jwt_identity()
-        return db.get(User, user_id)
+        return User.query.get(user_id)
     except Exception:
         return None

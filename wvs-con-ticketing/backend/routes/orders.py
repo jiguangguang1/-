@@ -160,7 +160,7 @@ def start_grabber(order_id):
     if order.status not in ('pending', 'failed', 'error'):
         return jsonify({'error': f'当前状态({order.status})无法启动'}), 400
 
-    user = db.get(User, user_id)
+    user = User.query.get(user_id)
 
     config = {
         'perf_url': order.perf_url,

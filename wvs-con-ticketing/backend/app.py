@@ -97,7 +97,7 @@ def create_app(config_name=None):
     @login_required
     def get_me():
         user_id = get_jwt_identity()
-        user = db.get(User, user_id)
+        user = User.query.get(user_id)
         if not user:
             return jsonify({'error': '用户不存在'}), 404
         return jsonify(user.to_dict())
@@ -106,7 +106,7 @@ def create_app(config_name=None):
     @login_required
     def update_profile():
         user_id = get_jwt_identity()
-        user = db.get(User, user_id)
+        user = User.query.get(user_id)
         if not user:
             return jsonify({'error': '用户不存在'}), 404
 
